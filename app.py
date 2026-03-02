@@ -459,7 +459,7 @@ elif st.session_state.page == 'rspo_tool':
                     st.markdown("<br>", unsafe_allow_html=True)
                     
                     # --- TRYB TINDER ---
-                    st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder)")
+                    st.markdown("### 🕵️‍♂️ Tryb Weryfikacji")
                     
                     anim_id = st.session_state.review_index
                     
@@ -582,3 +582,4 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+
