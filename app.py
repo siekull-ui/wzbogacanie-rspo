@@ -359,7 +359,7 @@ elif st.session_state.page == 'rspo_tool':
                             st.write("") # Spacing
                             
                             # Dodanie przycisku Cofnij (układ 1:2:2)
-                            c_btn_undo, c_btn1, c_btn2 = st.columns([1, 2, 2])
+                            c_btn1, c_btn_undo, c_btn2 = st.columns([2, 1, 2])
                             
                             with c_btn_undo:
                                 if st.session_state.review_index > 0:
@@ -438,4 +438,5 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+
 
