@@ -328,12 +328,27 @@ elif st.session_state.page == 'rspo_tool':
                     # --- TRYB TINDER ---
                     st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder)")
                     
+                    # Wstrzyknięcie CSS dla efektu przesuwania/wskakiwania karty
+                    st.markdown("""
+                    <style>
+                        @keyframes slideInCard {
+                            0% { transform: translateY(40px) scale(0.95); opacity: 0; }
+                            100% { transform: translateY(0) scale(1); opacity: 1; }
+                        }
+                        .tinder-animated-card {
+                            animation: slideInCard 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+                        }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
                     if st.session_state.review_index < len(st.session_state.to_review_indices):
                         current_idx = st.session_state.to_review_indices[st.session_state.review_index]
                         row_data = df_res.loc[current_idx]
                         
                         st.warning(f"Szkoła {st.session_state.review_index + 1} z {len(st.session_state.to_review_indices)} do weryfikacji:")
                         
+                        # Otwarcie animowanego kontenera karty
+                        st.markdown('<div class="tinder-animated-card">', unsafe_allow_html=True)
                         with st.container(border=True):
                             col_t1, col_t2 = st.columns(2)
                             with col_t1:
@@ -342,24 +357,57 @@ elif st.session_state.page == 'rspo_tool':
                                 st.success(f"**NAJLEPSZY KANDYDAT RSPO** (Pewność: {row_data['Pewność dopasowania (%)']}%)\n\n🏫 **Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n🔢 **RSPO:** {row_data['_Kandydat_RSPO']}")
                                 
                             st.write("") # Spacing
-                            c_btn1, c_btn2, c_btn3 = st.columns([1, 1, 2])
-                            if c_btn1.button("✅ TAK, to jest to!", use_container_width=True):
-                                st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
-                                st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
-                                st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
-                                st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
-                                st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
-                                
-                                st.session_state.review_index += 1
-                                st.rerun()
-                                
-                            if c_btn2.button("❌ NIE, odrzuć", use_container_width=True):
-                                st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
-                                st.session_state.review_index += 1
-                                st.rerun()
+                            
+                            # Dodanie przycisku Cofnij (układ 1:2:2)
+                            c_btn_undo, c_btn1, c_btn2 = st.columns([1, 2, 2])
+                            
+                            with c_btn_undo:
+                                if st.session_state.review_index > 0:
+                                    if st.button("⏪ Cofnij", use_container_width=True):
+                                        # Zmniejszamy indeks o 1
+                                        st.session_state.review_index -= 1
+                                        idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
+                                        # Czyścimy decyzję w głównej tabeli
+                                        st.session_state.df_result.at[idx_to_revert, 'Status'] = "⚠️ Do weryfikacji"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Nie znaleziono"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
+                                        st.rerun()
+                                        
+                            with c_btn1:
+                                if st.button("✅ TAK, to jest to!", use_container_width=True):
+                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
+                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
+                                    st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
+                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
+                                    st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
+                                    
+                                    st.session_state.review_index += 1
+                                    st.rerun()
+                                    
+                            with c_btn2:
+                                if st.button("❌ NIE, odrzuć", use_container_width=True):
+                                    st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
+                                    st.session_state.review_index += 1
+                                    st.rerun()
+                                    
+                        # Zamknięcie animowanego kontenera
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
                     else:
                         if len(st.session_state.to_review_indices) > 0:
                             st.success("🎉 Przejrzano wszystkie propozycje graniczne! Plik jest gotowy do pobrania.")
+                            # Możliwość cofnięcia z samego końca, jeśli ostatnia decyzja była błędna
+                            if st.button("⏪ Cofnij ostatnią decyzję"):
+                                st.session_state.review_index -= 1
+                                idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
+                                st.session_state.df_result.at[idx_to_revert, 'Status'] = "⚠️ Do weryfikacji"
+                                st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Nie znaleziono"
+                                st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
+                                st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
+                                st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
+                                st.rerun()
                         else:
                             st.success("🎉 Algorytm był bardzo pewny swoich decyzji! Brak szkół granicznych do weryfikacji.")
 
@@ -390,3 +438,4 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+
