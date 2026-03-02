@@ -3,4 +3,3 @@ pandas
 thefuzz
 python-Levenshtein
 openpyxl
-axe.gif
