@@ -9,41 +9,147 @@ from datetime import datetime
 # --- 1. KONFIGURACJA STRONY, CSS I INICJALIZACJA PAMIĘCI SESJI ---
 st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", page_icon="🏫", initial_sidebar_state="expanded")
 
-# Niestandardowy kod CSS dodający nowoczesny styl (Glassmorphism, akcenty)
+# Niestandardowy kod CSS dodający nowoczesny styl (Zaawansowany Glassmorphism, animacje, akcenty)
 st.markdown("""
 <style>
-    /* Estetyka kontenerów Kroków (akcenty kolorystyczne) */
-    .step-header {
-        padding: 15px 20px;
-        border-radius: 10px;
-        margin-bottom: 15px;
-        font-weight: 600;
-        font-size: 1.2rem;
-        background: rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: inherit;
-    }
-    .step-1 { border-left: 6px solid #4A90E2; } /* Niebieski akcent */
-    .step-2 { border-left: 6px solid #50E3C2; } /* Miętowy akcent */
-    .step-3 { border-left: 6px solid #B8E986; } /* Zielony akcent */
-    
-    /* Ukrycie TYLKO domyślnego menu Streamlit, ale przywrócenie widoczności nagłówka z przyciskiem paska! */
+    /* Ukrycie domyślnego menu Streamlit */
     #MainMenu {visibility: hidden;}
     .stDeployButton {display:none;}
     header {background-color: transparent !important;}
     
-    /* Zwiększenie przestrzeni i wyśrodkowanie tytułu głównego */
+    /* Główne tło i czcionki */
+    .stApp {
+        background-image: radial-gradient(circle at top right, rgba(74, 144, 226, 0.05) 0%, transparent 40%),
+                          radial-gradient(circle at bottom left, rgba(80, 227, 194, 0.05) 0%, transparent 40%);
+    }
+
+    /* Zwiększenie przestrzeni i wyśrodkowanie tytułu głównego z potężnym gradientem */
     .main-title {
         text-align: center;
-        font-size: 3rem;
-        font-weight: 800;
-        background: -webkit-linear-gradient(45deg, #4A90E2, #50E3C2);
+        font-size: 4rem;
+        font-weight: 900;
+        background: linear-gradient(135deg, #4A90E2 0%, #50E3C2 50%, #B8E986 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 50px;
+        margin-bottom: 20px;
         margin-top: 20px;
+        letter-spacing: -1.5px;
+        text-shadow: 0px 10px 20px rgba(74, 144, 226, 0.1);
+        animation: fadeInDown 0.8s ease-out;
+    }
+
+    /* Podtytuł */
+    .sub-title {
+        text-align: center; 
+        color: #8892B0; 
+        margin-bottom: 50px;
+        font-size: 1.2rem;
+        font-weight: 400;
+        animation: fadeIn 1s ease-out;
+    }
+
+    /* Nowoczesne kontenery (Glassmorphism) z efektem Hover */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 16px !important;
+        border: 1px solid rgba(150, 150, 150, 0.1) !important;
+        box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1) !important;
+        background: rgba(255, 255, 255, 0.02) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    }
+    
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px -15px rgba(74, 144, 226, 0.25) !important;
+        border: 1px solid rgba(74, 144, 226, 0.3) !important;
+    }
+
+    /* Estetyka kontenerów Kroków (akcenty kolorystyczne) */
+    .step-header {
+        padding: 15px 25px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        font-weight: 700;
+        font-size: 1.3rem;
+        background: linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: inherit;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .step-1 { border-left: 8px solid #4A90E2; box-shadow: -5px 0 15px rgba(74, 144, 226, 0.2); }
+    .step-2 { border-left: 8px solid #50E3C2; box-shadow: -5px 0 15px rgba(80, 227, 194, 0.2); }
+    .step-3 { border-left: 8px solid #B8E986; box-shadow: -5px 0 15px rgba(184, 233, 134, 0.2); }
+
+    /* Wypasione Przyciski */
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #4A90E2 0%, #50E3C2 100%) !important;
+        border: none !important;
+        color: white !important;
+        font-weight: 800 !important;
+        font-size: 1.1rem !important;
+        border-radius: 50px !important;
+        padding: 0.5rem 2rem !important;
+        box-shadow: 0 4px 15px rgba(80, 227, 194, 0.4) !important;
+        transition: all 0.3s ease !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        transform: scale(1.02) translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(80, 227, 194, 0.6) !important;
+        filter: brightness(1.1);
+    }
+    
+    .stButton > button[kind="secondary"] {
+        border-radius: 50px !important;
+        border: 2px solid rgba(150, 150, 150, 0.2) !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+        background: transparent !important;
+    }
+    .stButton > button[kind="secondary"]:hover {
+        border-color: #4A90E2 !important;
+        color: #4A90E2 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 5px 15px rgba(74, 144, 226, 0.1) !important;
+    }
+
+    /* Metryki z gradientem */
+    [data-testid="stMetricValue"] {
+        font-size: 2.8rem !important;
+        background: linear-gradient(135deg, #FF6B6B, #50E3C2, #4A90E2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 900 !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        color: #8892B0 !important;
+    }
+    
+    /* Upload plików area */
+    [data-testid="stFileUploadDropzone"] {
+        border: 2px dashed rgba(74, 144, 226, 0.5) !important;
+        border-radius: 20px !important;
+        background: rgba(74, 144, 226, 0.02) !important;
+        transition: all 0.3s ease !important;
+    }
+    [data-testid="stFileUploadDropzone"]:hover {
+        background: rgba(74, 144, 226, 0.08) !important;
+        border-color: #4A90E2 !important;
+    }
+
+    /* Animacje globalne */
+    @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -148,8 +254,12 @@ def pokaz_ekran_ladowania():
             st.markdown(
                 f"""
                 <div style='display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50vh;'>
-                    <img src="data:image/gif;base64,{data_url}" width="150">
-                    <h3 style='margin-top: 20px; color: #555;'>Trwa ładowanie modułów oświatowych... 🪓</h3>
+                    <div style='background: rgba(255,255,255,0.05); padding: 40px; border-radius: 50%; box-shadow: 0 0 50px rgba(74, 144, 226, 0.2);'>
+                        <img src="data:image/gif;base64,{data_url}" width="150" style='border-radius: 50%;'>
+                    </div>
+                    <h2 style='margin-top: 30px; background: linear-gradient(90deg, #4A90E2, #50E3C2); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>
+                        Trwa ładowanie potężnych modułów... 🪓
+                    </h2>
                 </div>
                 """, unsafe_allow_html=True)
         return ekran
@@ -161,18 +271,18 @@ def pokaz_ekran_ladowania():
 # MENU BOCZNE (SIDEBAR) - DRZEWKO HISTORII
 # ==========================================
 with st.sidebar:
-    st.markdown("## 🗂️ Menu Główne")
+    st.markdown("## 🚀 Nawigacja")
+    st.divider()
     
     if st.button("🏠 Strona Główna", use_container_width=True):
         st.session_state.page = 'home'
         st.rerun()
         
-    st.markdown("---")
     st.markdown("### 🕒 Ostatnie Analizy")
     
     with st.expander("🏫 Wzbogacanie RSPO", expanded=True):
         if not st.session_state.history_rspo:
-            st.caption("Brak historii. Przeprowadź pierwszą analizę.")
+            st.caption("Brak historii. Przeprowadź pierwszą analizę, aby coś tu zobaczyć.")
         else:
             for item in st.session_state.history_rspo:
                 if st.button(f"📄 {item['filename']} \n({item['time']})", key=f"hist_{item['id']}", use_container_width=True):
@@ -180,10 +290,10 @@ with st.sidebar:
                     st.session_state.page = 'history_view'
                     st.rerun()
 
-    with st.expander("📊 Analiza 2"):
+    with st.expander("📊 Analiza 2 (Nadchodzi)"):
         st.caption("Moduł w przygotowaniu...")
 
-    with st.expander("🗺️ Analiza 3"):
+    with st.expander("🗺️ Analiza 3 (Nadchodzi)"):
         st.caption("Moduł w przygotowaniu...")
 
 
@@ -193,33 +303,33 @@ with st.sidebar:
 
 # STRONA GŁÓWNA
 if st.session_state.page == 'home':
-    st.markdown('<div class="main-title">Analiza Danych Szkół</div>', unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align: center; color: gray; margin-bottom: 50px;'>Wybierz moduł analityczny, aby rozpocząć pracę</h4>", unsafe_allow_html=True)
+    st.markdown('<div class="main-title">Nexus Analityczny Szkół</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">Wybierz moduł analityczny i rozpocznij przetwarzanie danych na nowym poziomie</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         with st.container(border=True):
             st.markdown("### 🏫 Wzbogacanie RSPO")
-            st.write("Dopasuj brudne dane adresowe do oficjalnej Bazy RSPO, uzupełnij telefony i e-maile.")
-            st.write("")
-            if st.button("Uruchom Moduł", key="btn1", use_container_width=True, type="primary"):
+            st.write("Inteligentnie dopasuj brudne dane adresowe do oficjalnej Bazy RSPO. Uzupełnij telefony, e-maile i WWW za pomocą algorytmu Fuzzy Logic.")
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("⚡ Uruchom Moduł", key="btn1", use_container_width=True, type="primary"):
                 st.session_state.page = 'rspo_tool'
                 st.rerun()
                 
     with col2:
         with st.container(border=True):
-            st.markdown("### 📊 Analiza 2 (Wkrótce)")
-            st.write("Moduł w przygotowaniu. Będzie służył do analizy struktury placówek i statystyk.")
-            st.write("")
-            st.button("Zablokowane", key="btn2", use_container_width=True, disabled=True)
+            st.markdown("### 📊 Struktura (Wkrótce)")
+            st.write("Moduł w przygotowaniu. Głęboka analiza struktury placówek, statystyki i wyciąganie insightów biznesowych.")
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.button("🔒 Zablokowane", key="btn2", use_container_width=True, disabled=True)
             
     with col3:
         with st.container(border=True):
-            st.markdown("### 🗺️ Analiza 3 (Wkrótce)")
-            st.write("Moduł w przygotowaniu. Będzie wizualizował rozmieszczenie placówek na mapie.")
-            st.write("")
-            st.button("Zablokowane", key="btn3", use_container_width=True, disabled=True)
+            st.markdown("### 🗺️ Geomapping (Wkrótce)")
+            st.write("Moduł w przygotowaniu. Wizualizuj rozmieszczenie placówek na interaktywnych mapach cieplnych i przestrzennych.")
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.button("🔒 Zablokowane", key="btn3", use_container_width=True, disabled=True)
 
 
 # ==========================================
@@ -232,8 +342,8 @@ elif st.session_state.page == 'history_view':
         st.session_state.page = 'home'
         st.rerun()
         
-    st.title("🕒 Podgląd Zapisanej Analizy")
-    st.info(f"**Plik:** {item['filename']} | **Data wykonania:** {item['time']}")
+    st.markdown(f"<h1>🕒 Podgląd Zapisanej Analizy: <span style='color:#4A90E2;'>{item['filename']}</span></h1>", unsafe_allow_html=True)
+    st.info(f"📅 **Data wykonania:** {item['time']}")
     
     df_res = item['df_ref']
     
@@ -253,7 +363,8 @@ elif st.session_state.page == 'history_view':
         use_container_width=True
     )
     
-    st.markdown("### 👀 Podgląd Danych")
+    st.divider()
+    st.markdown("### 👀 Szybki Podgląd Danych")
     st.dataframe(df_do_pobrania, use_container_width=True)
 
 
@@ -266,8 +377,7 @@ elif st.session_state.page == 'rspo_tool':
         st.session_state.page = 'home'
         st.rerun()
         
-    st.title("🏫 Wzbogacanie danych szkół z RSPO")
-    st.write("Wgraj plik, przypisz zmienne i decyduj o przypadkach granicznych!")
+    st.markdown("<h1 style='text-align: center; margin-bottom: 30px;'>🏫 Ekstrakcja i Wzbogacanie Danych RSPO</h1>", unsafe_allow_html=True)
 
     ekran_ladowania = pokaz_ekran_ladowania()
     baza_rspo = wczytaj_baze_rspo()
@@ -275,10 +385,11 @@ elif st.session_state.page == 'rspo_tool':
         ekran_ladowania.empty()
 
     if baza_rspo is not None:
-        st.success(f"Baza RSPO wczytana pomyślnie ({len(baza_rspo)} placówek). Silnik gotowy do pracy.", icon="✅")
+        st.success(f"Silnik gotowy. Baza RSPO wczytana pomyślnie ({len(baza_rspo):,} placówek).", icon="✅")
+        st.write("")
         
         # Okno wgrywania plików
-        uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel/CSV)", type=["csv", "xlsx"])
+        uploaded_file = st.file_uploader("📂 Wgraj swój plik do uzupełnienia (Excel/CSV)", type=["csv", "xlsx"])
 
         # Logika zachowania pliku w pamięci
         if uploaded_file is not None:
@@ -311,12 +422,12 @@ elif st.session_state.page == 'rspo_tool':
                     
                     # KROK 1
                     with st.container(border=True):
-                        st.markdown('<div class="step-header step-1">Krok 1: Mapowanie Zmiennych</div>', unsafe_allow_html=True)
+                        st.markdown('<div class="step-header step-1">📌 Krok 1: Mapowanie Zmiennych</div>', unsafe_allow_html=True)
                         col_a1, col_a2 = st.columns(2)
                         with col_a1:
                             kol_nazwa = st.selectbox("W której kolumnie masz NAZWĘ szkoły?", kolumny)
                         with col_a2:
-                            kol_adres_lista = st.multiselect("W których kolumnach masz ADRES?", kolumny)
+                            kol_adres_lista = st.multiselect("W których kolumnach masz ADRES? (możesz wybrać kilka)", kolumny)
 
                         if kol_nazwa and kol_adres_lista:
                             st.caption("👀 Podgląd wybranych danych (pierwsze 5 wierszy):")
@@ -327,8 +438,8 @@ elif st.session_state.page == 'rspo_tool':
 
                     # KROK 2
                     with st.container(border=True):
-                        st.markdown('<div class="step-header step-2">Krok 2: Opcje dociągania danych</div>', unsafe_allow_html=True)
-                        szukaj_wszystko = st.checkbox("Dociągnij wszystkie dane z RSPO (Numer, Telefon, E-mail, WWW)", value=True)
+                        st.markdown('<div class="step-header step-2">🎯 Krok 2: Opcje dociągania danych</div>', unsafe_allow_html=True)
+                        szukaj_wszystko = st.checkbox("Dociągnij automatycznie wszystkie dane z RSPO (Numer, Telefon, E-mail, WWW)", value=True)
                         
                         szukaj_rspo, szukaj_telefon, szukaj_email, szukaj_www = True, True, True, True
                         if not szukaj_wszystko:
@@ -340,25 +451,34 @@ elif st.session_state.page == 'rspo_tool':
 
                     # KROK 3
                     with st.container(border=True):
-                        st.markdown('<div class="step-header step-3">Krok 3: Czułość algorytmu</div>', unsafe_allow_html=True)
-                        st.write("Dostosuj tolerancję na błędy. Rekordy poniżej tego progu trafią do ręcznej weryfikacji.")
+                        st.markdown('<div class="step-header step-3">🎛️ Krok 3: Czułość algorytmu</div>', unsafe_allow_html=True)
+                        st.write("Dostosuj tolerancję na błędy logiczne (literówki, braki). Rekordy poniżej tego progu trafią do ręcznej weryfikacji.")
                         prog_czulosci = st.slider("Próg pewności dopasowania (%)", min_value=50, max_value=100, value=80, step=1)
 
                     st.markdown("<br>", unsafe_allow_html=True)
 
-                    if st.button("🚀 Rozpocznij dopasowywanie", type="primary", use_container_width=True):
+                    if st.button("🚀 Uruchom Silnik Dopasowujący", type="primary", use_container_width=True):
                         if len(kol_adres_lista) == 0:
-                            st.warning("Wybierz co najmniej jedną kolumnę w polu ADRES!")
+                            st.warning("⚠️ Wybierz co najmniej jedną kolumnę w polu ADRES!")
                         else:
                             opisy_dict = baza_rspo['Znormalizowany_Opis'].to_dict()
-                            my_bar = st.progress(0, text="Analizuję Twoje dane i dopasowuję placówki...")
+                            my_bar = st.progress(0, text="Analizuję układ danych i dopasowuję placówki... Proszę czekać.")
                             
                             ekran_szukania = st.empty()
                             try:
                                 with open("search.gif", "rb") as f:
                                     search_data_url = base64.b64encode(f.read()).decode("utf-8")
                                 with ekran_szukania.container():
-                                    st.markdown(f"<div style='display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: 20px;'><img src='data:image/gif;base64,{search_data_url}' width='100'><p style='color: #888; font-style: italic; margin-top: 10px;'>Silnik analityczny pracuje...</p></div>", unsafe_allow_html=True)
+                                    st.markdown(f"""
+                                    <div style='display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: 30px; margin-bottom: 30px;'>
+                                        <div style='background: rgba(255,255,255,0.05); padding: 20px; border-radius: 30px; box-shadow: 0 10px 30px rgba(80, 227, 194, 0.2);'>
+                                            <img src='data:image/gif;base64,{search_data_url}' width='120' style='border-radius: 20px;'>
+                                        </div>
+                                        <h3 style='background: linear-gradient(45deg, #50E3C2, #4A90E2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 20px;'>
+                                            Przeszukuję bazę RSPO...
+                                        </h3>
+                                    </div>
+                                    """, unsafe_allow_html=True)
                             except FileNotFoundError:
                                 pass 
                             
@@ -381,7 +501,7 @@ elif st.session_state.page == 'rspo_tool':
                             
                             for index, row in df_uploaded.iterrows():
                                 if index % 5 == 0 or index == total_rows - 1:
-                                    my_bar.progress((index + 1) / total_rows, text=f"Dopasowuję: {index+1} / {total_rows}")
+                                    my_bar.progress((index + 1) / total_rows, text=f"Skok kwantowy: {index+1} / {total_rows} rekordów")
                                 
                                 brudna_nazwa = str(row[kol_nazwa])
                                 fragmenty_adresu = [str(row[col]).strip() for col in kol_adres_lista if pd.notna(row[col]) and str(row[col]).strip() != ""]
@@ -448,29 +568,29 @@ elif st.session_state.page == 'rspo_tool':
                     manual_count = len(df_res[df_res['Status'] == '🛠️ Ręcznie dopasowano'])
                     rejected_count = len(df_res[(df_res['Status'] == '⚠️ Do weryfikacji') | (df_res['Status'] == '❌ Odrzucono') | (df_res['Status'] == 'Brak kandydata')])
                     
-                    st.markdown("### 📊 Podsumowanie wyników")
+                    st.markdown("## 📊 Dashboard Wyników")
                     with st.container(border=True):
                         c1, c2, c3, c4 = st.columns(4)
-                        c1.metric("Wszystkie wiersze", total_rows)
+                        c1.metric("📦 Wszystkie wiersze", total_rows)
                         c2.metric("✅ Dopasowano", auto_count + manual_count, f"{round(((auto_count+manual_count)/total_rows)*100, 1)}%")
-                        c3.metric("⚠️ Oczekuje na weryfikację", len(st.session_state.to_review_indices) - st.session_state.review_index)
+                        c3.metric("⚠️ Do weryfikacji", len(st.session_state.to_review_indices) - st.session_state.review_index)
                         c4.metric("❌ Brak / Odrzucono", rejected_count)
                     
-                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.divider()
                     
                     # --- TRYB TINDER ---
-                    st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder)")
+                    st.markdown("### 🕵️‍♂️ Tryb Ręcznej Weryfikacji (Tinder Mode)")
                     
                     anim_id = st.session_state.review_index
                     
                     st.markdown(f"""
                     <style>
                         @keyframes slideInCard_{anim_id} {{
-                            0% {{ transform: translateY(30px) scale(0.98); opacity: 0; }}
+                            0% {{ transform: translateY(40px) scale(0.95); opacity: 0; }}
                             100% {{ transform: translateY(0) scale(1); opacity: 1; }}
                         }}
                         .tinder-card-{anim_id} {{
-                            animation: slideInCard_{anim_id} 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+                            animation: slideInCard_{anim_id} 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
                         }}
                     </style>
                     """, unsafe_allow_html=True)
@@ -479,15 +599,17 @@ elif st.session_state.page == 'rspo_tool':
                         current_idx = st.session_state.to_review_indices[st.session_state.review_index]
                         row_data = df_res.loc[current_idx]
                         
-                        st.warning(f"Szkoła {st.session_state.review_index + 1} z {len(st.session_state.to_review_indices)} do weryfikacji:")
+                        st.info(f"🔎 Rekord **{st.session_state.review_index + 1}** z **{len(st.session_state.to_review_indices)}** wymaga Twojej decyzji:")
                         
                         st.markdown(f'<div class="tinder-card-{anim_id}">', unsafe_allow_html=True)
                         with st.container(border=True):
                             col_t1, col_t2 = st.columns(2)
                             with col_t1:
-                                st.info(f"**TWOJE DANE (Z pliku)**\n\n🏫 **Nazwa:** {row_data['_Oryginalna_Nazwa']}\n\n📍 **Adres:** {row_data['_Oryginalny_Adres']}")
+                                st.markdown("#### 📄 Twoje dane z pliku")
+                                st.error(f"**🏫 Nazwa:** {row_data['_Oryginalna_Nazwa']}\n\n**📍 Adres:** {row_data['_Oryginalny_Adres']}")
                             with col_t2:
-                                st.success(f"**NAJLEPSZY KANDYDAT RSPO** (Pewność: {row_data['Pewność dopasowania (%)']}%)\n\n🏫 **Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n🔢 **RSPO:** {row_data['_Kandydat_RSPO']}")
+                                st.markdown(f"#### 🎯 Najlepszy kandydat RSPO (Pewność: <span style='color:#50E3C2;'>{row_data['Pewność dopasowania (%)']}%</span>)", unsafe_allow_html=True)
+                                st.success(f"**🏫 Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n**🔢 RSPO:** {row_data['_Kandydat_RSPO']}")
                                 
                             st.write("") 
                             
@@ -506,7 +628,7 @@ elif st.session_state.page == 'rspo_tool':
                                         st.rerun()
                                         
                             with c_btn1:
-                                if st.button("✅ TAK, to jest to!", use_container_width=True):
+                                if st.button("✅ TAK, Akceptuj", use_container_width=True, type="primary"):
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
@@ -516,7 +638,7 @@ elif st.session_state.page == 'rspo_tool':
                                     st.rerun()
                                     
                             with c_btn2:
-                                if st.button("❌ NIE, odrzuć", use_container_width=True):
+                                if st.button("❌ NIE, Odrzuć", use_container_width=True):
                                     st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
                                     st.session_state.review_index += 1
                                     st.rerun()
@@ -524,7 +646,7 @@ elif st.session_state.page == 'rspo_tool':
                         
                     else:
                         if len(st.session_state.to_review_indices) > 0:
-                            st.success("🎉 Przejrzano wszystkie propozycje graniczne! Plik jest gotowy do pobrania.")
+                            st.success("🎉 Weryfikacja zakończona! Przejrzano wszystkie przypadki graniczne. Plik jest gotowy do pobrania.")
                             if st.button("⏪ Cofnij ostatnią decyzję"):
                                 st.session_state.review_index -= 1
                                 idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
@@ -535,9 +657,9 @@ elif st.session_state.page == 'rspo_tool':
                                 st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
                                 st.rerun()
                         else:
-                            st.success("🎉 Algorytm był bardzo pewny swoich decyzji! Brak szkół granicznych do weryfikacji.")
+                            st.success("🎉 Perfekcyjne dopasowanie algorytmu! Brak szkół granicznych do weryfikacji.")
 
-                    st.markdown("---")
+                    st.divider()
                     
                     df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'])
                     
@@ -547,16 +669,18 @@ elif st.session_state.page == 'rspo_tool':
                     gotowy_excel = output.getvalue()
                     
                     # --- POBIERANIE WYNIKÓW I ZMIANA NAZWY PLIKU ---
-                    st.markdown("### 💾 Pobieranie wyników")
+                    st.markdown("### 💾 Pobieranie Finalnych Wyników")
                     
                     aktualna_nazwa_z_historii = st.session_state.history_rspo[0]['filename'] if len(st.session_state.history_rspo) > 0 else "Rozszerzone_dane.xlsx"
                     
-                    nazwa_uzytkownika = st.text_input(
-                        "Podaj nazwę dla pliku końcowego:", 
-                        value=aktualna_nazwa_z_historii, 
-                        key="user_filename_input",
-                        on_change=aktualizuj_nazwe_w_historii
-                    )
+                    col_input, col_btn = st.columns([3, 1])
+                    with col_input:
+                        nazwa_uzytkownika = st.text_input(
+                            "Zmień nazwę pliku przed pobraniem (opcjonalnie):", 
+                            value=aktualna_nazwa_z_historii, 
+                            key="user_filename_input",
+                            on_change=aktualizuj_nazwe_w_historii
+                        )
                     
                     if not nazwa_uzytkownika.endswith(".xlsx"):
                         nazwa_pliku = nazwa_uzytkownika + ".xlsx"
@@ -564,7 +688,7 @@ elif st.session_state.page == 'rspo_tool':
                         nazwa_pliku = nazwa_uzytkownika
                     
                     st.download_button(
-                        label=f"📥 Pobierz plik: {nazwa_pliku}",
+                        label=f"📥 Pobierz Plik: {nazwa_pliku}",
                         data=gotowy_excel,
                         file_name=nazwa_pliku,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -572,13 +696,15 @@ elif st.session_state.page == 'rspo_tool':
                         use_container_width=True
                     )
                     
+                    st.write("")
                     # Przycisk pełnego resetu połączony z funkcją "pelny_reset()"
-                    if st.button("🔄 Wgraj nowy plik / Zresetuj panel"):
+                    if st.button("🔄 Zakończ sesję i wgraj nowy plik", use_container_width=True):
                         pelny_reset()
                         st.rerun()
 
-                    with st.expander("👀 Pokaż podgląd obecnego stanu pliku", expanded=True):
+                    st.write("")
+                    with st.expander("👀 Podgląd obecnego stanu pliku (Top 15)", expanded=False):
                         st.dataframe(df_do_pobrania.head(15), use_container_width=True)
 
             except Exception as e:
-                st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+                st.error(f"Wystąpił krytyczny problem przy przetwarzaniu Twojego pliku: {e}")
