@@ -51,22 +51,41 @@ st.markdown("""
 # Inicjalizacja stanu sesji
 if 'page' not in st.session_state:
     st.session_state.page = 'home'
+
+# --- Zmienne dla przetrzymywania wgranego pliku (Persystencja) ---
+if 'raw_df' not in st.session_state:
+    st.session_state.raw_df = None
+if 'raw_file_name' not in st.session_state:
+    st.session_state.raw_file_name = None
+if 'last_uploaded_id' not in st.session_state:
+    st.session_state.last_uploaded_id = None
+
+# --- Zmienne wyników analizy i Tindera ---
 if 'df_result' not in st.session_state:
     st.session_state.df_result = None
 if 'to_review_indices' not in st.session_state:
     st.session_state.to_review_indices = []
 if 'review_index' not in st.session_state:
     st.session_state.review_index = 0
-# Zmienne do historii plików
+
+# --- Zmienne do historii plików ---
 if 'history_rspo' not in st.session_state:
     st.session_state.history_rspo = []
 if 'view_history_item' not in st.session_state:
     st.session_state.view_history_item = None
 
-def zresetuj_sesje():
+# Funkcja zerująca tylko postęp analizy i tindera
+def zresetuj_wyniki():
     st.session_state.df_result = None
     st.session_state.to_review_indices = []
     st.session_state.review_index = 0
+
+# Funkcja "twardego" resetu (kiedy klikamy Wgraj Nowy Plik)
+def pelny_reset():
+    zresetuj_wyniki()
+    st.session_state.raw_df = None
+    st.session_state.raw_file_name = None
+    st.session_state.last_uploaded_id = None
 
 # Funkcja aktualizująca nazwę pliku w historii
 def aktualizuj_nazwe_w_historii():
@@ -258,15 +277,33 @@ elif st.session_state.page == 'rspo_tool':
     if baza_rspo is not None:
         st.success(f"Baza RSPO wczytana pomyślnie ({len(baza_rspo)} placówek). Silnik gotowy do pracy.", icon="✅")
         
-        uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel/CSV)", type=["csv", "xlsx"], on_change=zresetuj_sesje)
+        # Okno wgrywania plików
+        uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel/CSV)", type=["csv", "xlsx"])
 
+        # Logika zachowania pliku w pamięci
         if uploaded_file is not None:
+            current_file_id = uploaded_file.name + str(uploaded_file.size)
+            # Jeśli wgrano NOWY plik (inny niż poprzednio wczytany)
+            if st.session_state.last_uploaded_id != current_file_id:
+                zresetuj_wyniki() # Czyścimy tylko Tindera, zachowując widok
+                st.session_state.last_uploaded_id = current_file_id
+                st.session_state.raw_file_name = uploaded_file.name
+                
+                # Odczyt surowych danych do pamięci
+                try:
+                    if uploaded_file.name.endswith('.csv'):
+                        st.session_state.raw_df = pd.read_csv(uploaded_file, sep=None, engine='python')
+                    else:
+                        st.session_state.raw_df = pd.read_excel(uploaded_file)
+                except Exception as e:
+                    st.error(f"Błąd podczas wczytywania pliku: {e}")
+                    st.session_state.raw_df = None
+
+        # --- GŁÓWNA LOGIKA NARZĘDZIA (Uruchamia się dopóki w pamięci jest plik) ---
+        if st.session_state.raw_df is not None:
             try:
-                if uploaded_file.name.endswith('.csv'):
-                    df_uploaded = pd.read_csv(uploaded_file, sep=None, engine='python')
-                else:
-                    df_uploaded = pd.read_excel(uploaded_file)
-                    
+                # Działamy na kopii surowych danych
+                df_uploaded = st.session_state.raw_df.copy()
                 kolumny = df_uploaded.columns.tolist()
                 
                 # --- PANEL STEROWANIA ---
@@ -387,7 +424,7 @@ elif st.session_state.page == 'rspo_tool':
                             st.session_state.review_index = 0
                             
                             # --- ZAPIS DO HISTORII ---
-                            nazwa_bazowa = uploaded_file.name.rsplit('.', 1)[0]
+                            nazwa_bazowa = st.session_state.raw_file_name.rsplit('.', 1)[0]
                             domyslna_nazwa_pliku = f"Rozszerzone_{nazwa_bazowa}.xlsx"
                             
                             nowa_historia = {
@@ -424,7 +461,6 @@ elif st.session_state.page == 'rspo_tool':
                     # --- TRYB TINDER ---
                     st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder)")
                     
-                    # Dynamiczny klucz animacji
                     anim_id = st.session_state.review_index
                     
                     st.markdown(f"""
@@ -513,10 +549,8 @@ elif st.session_state.page == 'rspo_tool':
                     # --- POBIERANIE WYNIKÓW I ZMIANA NAZWY PLIKU ---
                     st.markdown("### 💾 Pobieranie wyników")
                     
-                    # Pobieramy bieżącą nazwę z historii (aby domyślnie pokazać to, co jest)
                     aktualna_nazwa_z_historii = st.session_state.history_rspo[0]['filename'] if len(st.session_state.history_rspo) > 0 else "Rozszerzone_dane.xlsx"
                     
-                    # Pole tekstowe (zmiana tekstu wywoła funkcję aktualizuj_nazwe_w_historii)
                     nazwa_uzytkownika = st.text_input(
                         "Podaj nazwę dla pliku końcowego:", 
                         value=aktualna_nazwa_z_historii, 
@@ -524,7 +558,6 @@ elif st.session_state.page == 'rspo_tool':
                         on_change=aktualizuj_nazwe_w_historii
                     )
                     
-                    # Upewniamy się, że plik ma odpowiednie rozszerzenie do pobrania
                     if not nazwa_uzytkownika.endswith(".xlsx"):
                         nazwa_pliku = nazwa_uzytkownika + ".xlsx"
                     else:
@@ -538,10 +571,10 @@ elif st.session_state.page == 'rspo_tool':
                         type="primary",
                         use_container_width=True
                     )
-                    # -----------------------------------------------
                     
+                    # Przycisk pełnego resetu połączony z funkcją "pelny_reset()"
                     if st.button("🔄 Wgraj nowy plik / Zresetuj panel"):
-                        zresetuj_sesje()
+                        pelny_reset()
                         st.rerun()
 
                     with st.expander("👀 Pokaż podgląd obecnego stanu pliku", expanded=True):
