@@ -12,113 +12,39 @@ st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", page_icon
 # Niestandardowy kod CSS dodający nowoczesny styl (Glassmorphism, akcenty)
 st.markdown("""
 <style>
-    /* Nowoczesne Karty Modułów */
-    .module-card {
-        background: rgba(255, 255, 255, 0.03);
+    /* Estetyka kontenerów Kroków (akcenty kolorystyczne) */
+    .step-header {
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        font-weight: 600;
+        font-size: 1.2rem;
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 15px;
-        padding: 25px;
-        text-align: center;
-        transition: all 0.3s ease-in-out;
-        cursor: pointer;
-        margin-bottom: 20px;
+        color: inherit;
     }
-    .module-card:hover {
-        transform: translateY(-10px);
-        background: rgba(255, 255, 255, 0.07);
-        border-color: #4A90E2;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-    }
+    .step-1 { border-left: 6px solid #4A90E2; } /* Niebieski akcent */
+    .step-2 { border-left: 6px solid #50E3C2; } /* Miętowy akcent */
+    .step-3 { border-left: 6px solid #B8E986; } /* Zielony akcent */
     
-    /* Animacja napisu głównego */
-    @keyframes gradientText {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-    .animated-title {
-        font-size: 3.5rem;
+    /* Ukrycie TYLKO domyślnego menu Streamlit, ale przywrócenie widoczności nagłówka z przyciskiem paska! */
+    #MainMenu {visibility: hidden;}
+    .stDeployButton {display:none;}
+    header {background-color: transparent !important;}
+    
+    /* Zwiększenie przestrzeni i wyśrodkowanie tytułu głównego */
+    .main-title {
+        text-align: center;
+        font-size: 3rem;
         font-weight: 800;
-        background: linear-gradient(-45deg, #4A90E2, #50E3C2, #B8E986, #4A90E2);
-        background-size: 400% 400%;
+        background: -webkit-linear-gradient(45deg, #4A90E2, #50E3C2);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        animation: gradientText 10s ease infinite;
-        text-align: center;
-        margin-bottom: 10px;
-    }
-    
-    /* Subtelny opis pod tytułem */
-    .hero-subtitle {
-        text-align: center;
-        color: #888;
-        font-size: 1.2rem;
         margin-bottom: 50px;
-        font-weight: 300;
+        margin-top: 20px;
     }
-</style>
-""", unsafe_allow_html=True)
-
-# ==========================================
-# GŁÓWNA NAWIGACJA (STRONY)
-# ==========================================
-
-if st.session_state.page == 'home':
-    # Sekcja Hero
-    st.markdown('<div class="animated-title">Analiza Danych Szkół</div>', unsafe_allow_html=True)
-    st.markdown('<div class="hero-subtitle">Profesjonalne narzędzie do wzbogacania i weryfikacji baz oświatowych</div>', unsafe_allow_html=True)
-    
-    # Dashboard statystyk (opcjonalny, wyciąga dane z historii)
-    total_files = len(st.session_state.history_rspo)
-    
-    col_s1, col_s2, col_s3 = st.columns(3)
-    with col_s1:
-        st.metric("Przetworzone pliki", total_files)
-    with col_s2:
-        st.metric("Status Systemu", "Online", delta="Gotowy")
-    with col_s3:
-        st.metric("Baza Referencyjna", "RSPO 2025")
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    
-    # Grid Modułów
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div class="module-card">
-            <h2 style='font-size: 3rem;'>🏫</h2>
-            <h3>Wzbogacanie RSPO</h3>
-            <p style='color: #aaa;'>Automatyczne dopasowanie danych adresowych, numerów telefonów i adresów e-mail z bazy krajowej.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("Uruchom Moduł RSPO", key="btn1", use_container_width=True, type="primary"):
-            st.session_state.page = 'rspo_tool'
-            st.rerun()
-                
-    with col2:
-        st.markdown("""
-        <div class="module-card">
-            <h2 style='font-size: 3rem;'>📊</h2>
-            <h3>Analiza Struktury</h3>
-            <p style='color: #aaa;'>Generowanie statystyk dotyczących typów placówek, organów prowadzących i demografii uczniów.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.button("Wkrótce (Zablokowane)", key="btn2", use_container_width=True, disabled=True)
-            
-    with col3:
-        st.markdown("""
-        <div class="module-card">
-            <h2 style='font-size: 3rem;'>🗺️</h2>
-            <h3>Geokodowanie</h3>
-            <p style='color: #aaa;'>Wizualizacja placówek na mapie interaktywnej oraz analiza zasięgu terytorialnego szkół.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.button("Wkrótce (Zablokowane)", key="btn3", use_container_width=True, disabled=True)
-
-    # Stopka z personalizacją (opcjonalnie)
-    st.markdown("---")
-    st.caption(f"Zalogowano jako: Użytkownik | Sesja aktywna od: {datetime.now().strftime('%H:%M')}")
 </style>
 """, unsafe_allow_html=True)
 
@@ -533,7 +459,7 @@ elif st.session_state.page == 'rspo_tool':
                     st.markdown("<br>", unsafe_allow_html=True)
                     
                     # --- TRYB TINDER ---
-                    st.markdown("### 🕵️‍♂️ Tryb Weryfikacji")
+                    st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder)")
                     
                     anim_id = st.session_state.review_index
                     
@@ -656,5 +582,3 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
-
-
