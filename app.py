@@ -90,7 +90,7 @@ if ekran_ladowania:
 
 
 # --- 4. GŁÓWNY INTERFEJS ---
-st.title("🏫 Wzbogacanie danych szkół z RSPO (Tinder Mode)")
+st.title("Wzbogacanie danych szkół z RSPO")
 st.write("Wgraj plik, ustaw czułość i decyduj o przypadkach granicznych!")
 
 if baza_rspo is not None:
@@ -249,7 +249,7 @@ if baza_rspo is not None:
                 st.markdown("---")
                 
                 # --- TRYB TINDER ---
-                st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder dla Szkół)")
+                st.markdown("###Tryb Weryfikacji")
                 
                 if st.session_state.review_index < len(st.session_state.to_review_indices):
                     # Pobranie wiersza, który aktualnie oceniamy
@@ -317,3 +317,4 @@ if baza_rspo is not None:
 
         except Exception as e:
             st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+
