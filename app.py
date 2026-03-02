@@ -3,46 +3,26 @@ import pandas as pd
 from thefuzz import process, fuzz
 import io
 import re
+import base64  # NOWOŚĆ: potrzebne do wczytania pliku GIF
 
-# Konfiguracja strony
+# Konfiguracja strony (musi być na samej górze)
 st.set_page_config(page_title="Wzbogacanie danych z RSPO", layout="centered", page_icon="🏫")
 
-# --- NOWOŚĆ: Moduł Inteligentnej Normalizacji Tekstu ---
+# --- Moduł Inteligentnej Normalizacji Tekstu ---
 def normalizuj_tekst(tekst):
     if not isinstance(tekst, str):
         return ""
-    
     tekst = tekst.lower()
-    
-    # 1. Słownik skrótów - zamiana na pełne nazwy i usuwanie "szumu"
     zamiany = {
-        r'\bsp\b': 'szkoła podstawowa',
-        r'\bzs\b': 'zespół szkół',
-        r'\blo\b': 'liceum ogólnokształcące',
-        r'\bzso\b': 'zespół szkół ogólnokształcących',
-        r'\bzsz\b': 'zespół szkół zawodowych',
-        r'\bckziu\b': 'centrum kształcenia zawodowego i ustawicznego',
-        r'\bmow\b': 'młodzieżowy ośrodek wychowawczy',
-        r'\bmos\b': 'młodzieżowy ośrodek socjoterapii',
-        r'\bsosw\b': 'specjalny ośrodek szkolno wychowawczy',
-        
-        # Usuwanie szumu informacyjnego
-        r'\bim\.\b': '',
-        r'\bimienia\b': '',
-        r'\bul\.\b': '',
-        r'\bulica\b': '',
-        r'\bal\.\b': '',
-        r'\baleja\b': '',
-        r'\bpl\.\b': '',
-        r'\bplac\b': '',
-        r'\bnr\b': '',
-        r'\bnumer\b': ''
+        r'\bsp\b': 'szkoła podstawowa', r'\bzs\b': 'zespół szkół', r'\blo\b': 'liceum ogólnokształcące',
+        r'\bzso\b': 'zespół szkół ogólnokształcących', r'\bzsz\b': 'zespół szkół zawodowych',
+        r'\bckziu\b': 'centrum kształcenia zawodowego i ustawicznego', r'\bmow\b': 'młodzieżowy ośrodek wychowawczy',
+        r'\bmos\b': 'młodzieżowy ośrodek socjoterapii', r'\bsosw\b': 'specjalny ośrodek szkolno wychowawczy',
+        r'\bim\.\b': '', r'\bimienia\b': '', r'\bul\.\b': '', r'\bulica\b': '', r'\bal\.\b': '',
+        r'\baleja\b': '', r'\bpl\.\b': '', r'\bplac\b': '', r'\bnr\b': '', r'\bnumer\b': ''
     }
-    
     for wzorzec, zamiennik in zamiany.items():
         tekst = re.sub(wzorzec, zamiennik, tekst)
-        
-    # 2. Zamiana cyfr rzymskich na arabskie (częste w nazwach szkół)
     rzymskie_na_arabskie = {
         r'\bxv\b': '15', r'\bxiv\b': '14', r'\bxiii\b': '13', r'\bxii\b': '12', r'\bxi\b': '11',
         r'\bx\b': '10', r'\bix\b': '9', r'\bviii\b': '8', r'\bvii\b': '7', r'\bvi\b': '6',
@@ -50,13 +30,9 @@ def normalizuj_tekst(tekst):
     }
     for rzym, arab in rzymskie_na_arabskie.items():
         tekst = re.sub(rzym, arab, tekst)
-        
-    # 3. Usuwanie znaków interpunkcyjnych i wielokrotnych spacji
     tekst = re.sub(r'[^\w\s]', ' ', tekst)
     tekst = re.sub(r'\s+', ' ', tekst).strip()
-    
     return tekst
-# ---------------------------------------------------------
 
 # --- Funkcja ładująca bazę RSPO ---
 @st.cache_data
@@ -68,21 +44,49 @@ def wczytaj_baze_rspo():
         ulica = df_rspo['Ulica'].fillna('')
         nr_budynku = df_rspo['Numer budynku'].astype(str).replace('nan', '').fillna('')
         
-        # Tworzymy pełny opis do podglądu
         df_rspo['Pelny_Opis'] = nazwa + ' ' + miejscowosc + ' ' + ulica + ' ' + nr_budynku
         df_rspo['Pelny_Opis'] = df_rspo['Pelny_Opis'].str.replace('  ', ' ')
-        
-        # NOWOŚĆ: Tworzymy znormalizowaną wersję bazy dla algorytmu
         df_rspo['Znormalizowany_Opis'] = df_rspo['Pelny_Opis'].apply(normalizuj_tekst)
-        
         return df_rspo
     except Exception as e:
         st.error(f"Wystąpił błąd przy wczytywaniu bazy: {e}")
         return None
 
-# Ładujemy bazę w tle
+# --- NOWOŚĆ: Funkcja wyświetlająca kręcący się topór ---
+def pokaz_ekran_ladowania():
+    ekran = st.empty() # Tworzymy tymczasowy kontener
+    try:
+        # Wczytujemy plik GIF i zamieniamy na kod zrozumiały dla przeglądarki
+        with open("axe.gif", "rb") as f:
+            data_url = base64.b64encode(f.read()).decode("utf-8")
+        
+        # Wyświetlamy GIFa na środku ekranu za pomocą HTML/CSS
+        with ekran.container():
+            st.markdown(
+                f"""
+                <div style='display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50vh;'>
+                    <img src="data:image/gif;base64,{data_url}" width="150">
+                    <h3 style='margin-top: 20px; color: #555;'>Topór pracuje... Rąbiemy dane z RSPO! 🪓</h3>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+        return ekran
+    except FileNotFoundError:
+        # Jeśli na GitHubie nie będzie pliku axe.gif, po prostu nic się nie pokaże (zabezpieczenie)
+        return ekran
+
+# 1. POKAZUJEMY TOPÓR ZANIM ZACZNIE SIĘ ŁADOWANIE
+ekran_ladowania = pokaz_ekran_ladowania()
+
+# 2. W TYM MOMENCIE APLIKACJA "ZAMIERA" I ŁADUJE BAZĘ (TOPÓR SIĘ KRĘCI)
 baza_rspo = wczytaj_baze_rspo()
 
+# 3. GDY BAZA SIĘ ZAŁADUJE, CZYŚCIMY EKRAN Z TOPOREM
+if ekran_ladowania:
+    ekran_ladowania.empty()
+
+# --- Właściwy interfejs aplikacji (ładuje się po zniknięciu topora) ---
 st.title("🏫 Wzbogacanie danych szkół z RSPO")
 st.write("Wgraj swój plik ze szkołami, wybierz odpowiednie kolumny i pozwól systemowi dopasować brakujące informacje.")
 
@@ -112,7 +116,6 @@ if baza_rspo is not None:
                 kolumny
             )
 
-            # Podgląd wybranych danych
             if kol_nazwa and kol_adres_lista:
                 st.write("👀 **Podgląd wybranych danych (pierwsze 5 wierszy):**")
                 kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
@@ -146,9 +149,7 @@ if baza_rspo is not None:
             else:
                 if st.button("🔎 Rozpocznij dopasowywanie (z użyciem NLP)", type="primary"):
                     
-                    # Przygotowanie słownika do wyszukiwania: {indeks_w_bazie: znormalizowany_tekst}
                     opisy_dict = baza_rspo['Znormalizowany_Opis'].to_dict()
-                    
                     my_bar = st.progress(0, text="Analizuję Twoje dane i dopasowuję placówki...")
                     
                     wyniki_rspo, wyniki_telefon, wyniki_email, wyniki_www = [], [], [], []
@@ -159,24 +160,15 @@ if baza_rspo is not None:
                             my_bar.progress((index + 1) / total_rows, text=f"Dopasowuję: {index+1} / {total_rows}")
                         
                         brudna_nazwa = str(row[kol_nazwa])
-                        
-                        fragmenty_adresu = []
-                        for col in kol_adres_lista:
-                            wartosc = row[col]
-                            if pd.notna(wartosc) and str(wartosc).strip() != "":
-                                fragmenty_adresu.append(str(wartosc).strip())
-                        
+                        fragmenty_adresu = [str(row[col]).strip() for col in kol_adres_lista if pd.notna(row[col]) and str(row[col]).strip() != ""]
                         brudny_adres = " ".join(fragmenty_adresu)
                         
-                        # NOWOŚĆ: Normalizujemy dane wejściowe z Twojego pliku przed wyszukiwaniem
                         szukana_fraza = brudna_nazwa + ' ' + brudny_adres
                         znormalizowana_fraza = normalizuj_tekst(szukana_fraza)
                         
-                        # Algorytm szuka w znormalizowanej bazie
                         najlepsze = process.extractOne(znormalizowana_fraza, opisy_dict, scorer=fuzz.token_set_ratio)
                         
                         if najlepsze and najlepsze[1] > 80:
-                            # najlepsze[2] to klucz (indeks) z naszego opisy_dict
                             dopasowany_indeks = najlepsze[2]
                             dopasowany_wiersz = baza_rspo.loc[dopasowany_indeks]
                             
