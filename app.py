@@ -68,6 +68,14 @@ def zresetuj_sesje():
     st.session_state.to_review_indices = []
     st.session_state.review_index = 0
 
+# Funkcja aktualizująca nazwę pliku w historii
+def aktualizuj_nazwe_w_historii():
+    if len(st.session_state.history_rspo) > 0:
+        nowa_nazwa = st.session_state.user_filename_input
+        if not nowa_nazwa.endswith('.xlsx'):
+            nowa_nazwa += '.xlsx'
+        st.session_state.history_rspo[0]['filename'] = nowa_nazwa
+
 # --- 2. MODUŁ NORMALIZACJI NLP ---
 def normalizuj_tekst(tekst):
     if not isinstance(tekst, str):
@@ -220,7 +228,7 @@ elif st.session_state.page == 'history_view':
     st.download_button(
         label="📥 Pobierz Plik Ponownie (.xlsx)",
         data=gotowy_excel,
-        file_name=f"Historia_{item['filename']}.xlsx",
+        file_name=item['filename'],
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
         use_container_width=True
@@ -379,10 +387,13 @@ elif st.session_state.page == 'rspo_tool':
                             st.session_state.review_index = 0
                             
                             # --- ZAPIS DO HISTORII ---
+                            nazwa_bazowa = uploaded_file.name.rsplit('.', 1)[0]
+                            domyslna_nazwa_pliku = f"Rozszerzone_{nazwa_bazowa}.xlsx"
+                            
                             nowa_historia = {
                                 'id': datetime.now().strftime("%Y%m%d%H%M%S"),
                                 'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                'filename': uploaded_file.name,
+                                'filename': domyslna_nazwa_pliku,
                                 'df_ref': st.session_state.df_result 
                             }
                             st.session_state.history_rspo.insert(0, nowa_historia)
@@ -499,14 +510,35 @@ elif st.session_state.page == 'rspo_tool':
                         df_do_pobrania.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
                     gotowy_excel = output.getvalue()
                     
+                    # --- POBIERANIE WYNIKÓW I ZMIANA NAZWY PLIKU ---
+                    st.markdown("### 💾 Pobieranie wyników")
+                    
+                    # Pobieramy bieżącą nazwę z historii (aby domyślnie pokazać to, co jest)
+                    aktualna_nazwa_z_historii = st.session_state.history_rspo[0]['filename'] if len(st.session_state.history_rspo) > 0 else "Rozszerzone_dane.xlsx"
+                    
+                    # Pole tekstowe (zmiana tekstu wywoła funkcję aktualizuj_nazwe_w_historii)
+                    nazwa_uzytkownika = st.text_input(
+                        "Podaj nazwę dla pliku końcowego:", 
+                        value=aktualna_nazwa_z_historii, 
+                        key="user_filename_input",
+                        on_change=aktualizuj_nazwe_w_historii
+                    )
+                    
+                    # Upewniamy się, że plik ma odpowiednie rozszerzenie do pobrania
+                    if not nazwa_uzytkownika.endswith(".xlsx"):
+                        nazwa_pliku = nazwa_uzytkownika + ".xlsx"
+                    else:
+                        nazwa_pliku = nazwa_uzytkownika
+                    
                     st.download_button(
-                        label="📥 Pobierz Gotowy, Zweryfikowany Plik (.xlsx)",
+                        label=f"📥 Pobierz plik: {nazwa_pliku}",
                         data=gotowy_excel,
-                        file_name="Rozszerzone_Szkoly_Z_RSPO.xlsx",
+                        file_name=nazwa_pliku,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         type="primary",
                         use_container_width=True
                     )
+                    # -----------------------------------------------
                     
                     if st.button("🔄 Wgraj nowy plik / Zresetuj panel"):
                         zresetuj_sesje()
