@@ -2,9 +2,61 @@ import streamlit as st
 import pandas as pd
 from thefuzz import process, fuzz
 import io
+import re
 
 # Konfiguracja strony
 st.set_page_config(page_title="Wzbogacanie danych z RSPO", layout="centered", page_icon="🏫")
+
+# --- NOWOŚĆ: Moduł Inteligentnej Normalizacji Tekstu ---
+def normalizuj_tekst(tekst):
+    if not isinstance(tekst, str):
+        return ""
+    
+    tekst = tekst.lower()
+    
+    # 1. Słownik skrótów - zamiana na pełne nazwy i usuwanie "szumu"
+    zamiany = {
+        r'\bsp\b': 'szkoła podstawowa',
+        r'\bzs\b': 'zespół szkół',
+        r'\blo\b': 'liceum ogólnokształcące',
+        r'\bzso\b': 'zespół szkół ogólnokształcących',
+        r'\bzsz\b': 'zespół szkół zawodowych',
+        r'\bckziu\b': 'centrum kształcenia zawodowego i ustawicznego',
+        r'\bmow\b': 'młodzieżowy ośrodek wychowawczy',
+        r'\bmos\b': 'młodzieżowy ośrodek socjoterapii',
+        r'\bsosw\b': 'specjalny ośrodek szkolno wychowawczy',
+        
+        # Usuwanie szumu informacyjnego
+        r'\bim\.\b': '',
+        r'\bimienia\b': '',
+        r'\bul\.\b': '',
+        r'\bulica\b': '',
+        r'\bal\.\b': '',
+        r'\baleja\b': '',
+        r'\bpl\.\b': '',
+        r'\bplac\b': '',
+        r'\bnr\b': '',
+        r'\bnumer\b': ''
+    }
+    
+    for wzorzec, zamiennik in zamiany.items():
+        tekst = re.sub(wzorzec, zamiennik, tekst)
+        
+    # 2. Zamiana cyfr rzymskich na arabskie (częste w nazwach szkół)
+    rzymskie_na_arabskie = {
+        r'\bxv\b': '15', r'\bxiv\b': '14', r'\bxiii\b': '13', r'\bxii\b': '12', r'\bxi\b': '11',
+        r'\bx\b': '10', r'\bix\b': '9', r'\bviii\b': '8', r'\bvii\b': '7', r'\bvi\b': '6',
+        r'\biv\b': '4', r'\bv\b': '5', r'\biii\b': '3', r'\bii\b': '2', r'\bi\b': '1'
+    }
+    for rzym, arab in rzymskie_na_arabskie.items():
+        tekst = re.sub(rzym, arab, tekst)
+        
+    # 3. Usuwanie znaków interpunkcyjnych i wielokrotnych spacji
+    tekst = re.sub(r'[^\w\s]', ' ', tekst)
+    tekst = re.sub(r'\s+', ' ', tekst).strip()
+    
+    return tekst
+# ---------------------------------------------------------
 
 # --- Funkcja ładująca bazę RSPO ---
 @st.cache_data
@@ -16,8 +68,12 @@ def wczytaj_baze_rspo():
         ulica = df_rspo['Ulica'].fillna('')
         nr_budynku = df_rspo['Numer budynku'].astype(str).replace('nan', '').fillna('')
         
+        # Tworzymy pełny opis do podglądu
         df_rspo['Pelny_Opis'] = nazwa + ' ' + miejscowosc + ' ' + ulica + ' ' + nr_budynku
         df_rspo['Pelny_Opis'] = df_rspo['Pelny_Opis'].str.replace('  ', ' ')
+        
+        # NOWOŚĆ: Tworzymy znormalizowaną wersję bazy dla algorytmu
+        df_rspo['Znormalizowany_Opis'] = df_rspo['Pelny_Opis'].apply(normalizuj_tekst)
         
         return df_rspo
     except Exception as e:
@@ -31,7 +87,7 @@ st.title("🏫 Wzbogacanie danych szkół z RSPO")
 st.write("Wgraj swój plik ze szkołami, wybierz odpowiednie kolumny i pozwól systemowi dopasować brakujące informacje.")
 
 if baza_rspo is not None:
-    st.info(f"✅ Baza RSPO wczytana poprawnie (zawiera {len(baza_rspo)} placówek).")
+    st.info(f"✅ Baza RSPO wczytana poprawnie (zawiera {len(baza_rspo)} placówek). Moduł NLP aktywny.")
     
     uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel lub CSV)", type=["csv", "xlsx"])
 
@@ -56,16 +112,13 @@ if baza_rspo is not None:
                 kolumny
             )
 
-            # --- NOWOŚĆ: Podgląd wybranych danych ---
+            # Podgląd wybranych danych
             if kol_nazwa and kol_adres_lista:
-                st.write("**Podgląd wybranych danych (pierwsze 5 wierszy):**")
-                # Tworzymy listę kolumn, które chcemy pokazać (nazwa + wszystkie wybrane części adresu)
+                st.write("👀 **Podgląd wybranych danych (pierwsze 5 wierszy):**")
                 kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
-                # Pokazujemy elegancką tabelkę z pierwszymi 5 wierszami
                 st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
             elif kol_nazwa and not kol_adres_lista:
                 st.info("Wybierz przynajmniej jedną kolumnę adresową, aby zobaczyć podgląd.")
-            # ----------------------------------------
 
             st.markdown("---")
             st.subheader("Krok 2: Jakie dane chcesz dociągnąć z bazy RSPO?")
@@ -91,9 +144,11 @@ if baza_rspo is not None:
             if len(kol_adres_lista) == 0:
                 st.warning("Wybierz co najmniej jedną kolumnę w polu ADRES, aby móc rozpocząć.")
             else:
-                if st.button("🔎 Rozpocznij dopasowywanie", type="primary"):
+                if st.button("🔎 Rozpocznij dopasowywanie (z użyciem NLP)", type="primary"):
                     
-                    opisy_rspo = baza_rspo['Pelny_Opis'].tolist()
+                    # Przygotowanie słownika do wyszukiwania: {indeks_w_bazie: znormalizowany_tekst}
+                    opisy_dict = baza_rspo['Znormalizowany_Opis'].to_dict()
+                    
                     my_bar = st.progress(0, text="Analizuję Twoje dane i dopasowuję placówki...")
                     
                     wyniki_rspo, wyniki_telefon, wyniki_email, wyniki_www = [], [], [], []
@@ -112,12 +167,19 @@ if baza_rspo is not None:
                                 fragmenty_adresu.append(str(wartosc).strip())
                         
                         brudny_adres = " ".join(fragmenty_adresu)
-                        szukana_fraza = brudna_nazwa + ' ' + brudny_adres
                         
-                        najlepsze = process.extractOne(szukana_fraza, opisy_rspo, scorer=fuzz.token_set_ratio)
+                        # NOWOŚĆ: Normalizujemy dane wejściowe z Twojego pliku przed wyszukiwaniem
+                        szukana_fraza = brudna_nazwa + ' ' + brudny_adres
+                        znormalizowana_fraza = normalizuj_tekst(szukana_fraza)
+                        
+                        # Algorytm szuka w znormalizowanej bazie
+                        najlepsze = process.extractOne(znormalizowana_fraza, opisy_dict, scorer=fuzz.token_set_ratio)
                         
                         if najlepsze and najlepsze[1] > 80:
-                            dopasowany_wiersz = baza_rspo[baza_rspo['Pelny_Opis'] == najlepsze[0]].iloc[0]
+                            # najlepsze[2] to klucz (indeks) z naszego opisy_dict
+                            dopasowany_indeks = najlepsze[2]
+                            dopasowany_wiersz = baza_rspo.loc[dopasowany_indeks]
+                            
                             wyniki_rspo.append(dopasowany_wiersz.get('Numer RSPO', 'Brak'))
                             wyniki_telefon.append(dopasowany_wiersz.get('Telefon', 'Brak'))
                             wyniki_email.append(dopasowany_wiersz.get('E-mail', 'Brak'))
