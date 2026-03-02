@@ -5,10 +5,23 @@ import io
 import re
 import base64
 
-# Konfiguracja strony
-st.set_page_config(page_title="Wzbogacanie danych z RSPO", layout="centered", page_icon="🏫")
+# --- 1. KONFIGURACJA STRONY I INICJALIZACJA PAMIĘCI SESJI ---
+st.set_page_config(page_title="Wzbogacanie danych z RSPO", layout="wide", page_icon="🏫")
 
-# --- Moduł Inteligentnej Normalizacji Tekstu ---
+if 'df_result' not in st.session_state:
+    st.session_state.df_result = None
+if 'to_review_indices' not in st.session_state:
+    st.session_state.to_review_indices = []
+if 'review_index' not in st.session_state:
+    st.session_state.review_index = 0
+
+# Funkcja do resetowania pamięci przy wgrywaniu nowego pliku
+def zresetuj_sesje():
+    st.session_state.df_result = None
+    st.session_state.to_review_indices = []
+    st.session_state.review_index = 0
+
+# --- 2. MODUŁ NORMALIZACJI NLP ---
 def normalizuj_tekst(tekst):
     if not isinstance(tekst, str):
         return ""
@@ -34,7 +47,7 @@ def normalizuj_tekst(tekst):
     tekst = re.sub(r'\s+', ' ', tekst).strip()
     return tekst
 
-# --- Funkcja ładująca bazę RSPO ---
+# --- 3. WYSZUKIWANIE I BAZA RSPO ---
 @st.cache_data
 def wczytaj_baze_rspo():
     try:
@@ -52,7 +65,6 @@ def wczytaj_baze_rspo():
         st.error(f"Wystąpił błąd przy wczytywaniu bazy: {e}")
         return None
 
-# --- Funkcja wyświetlająca kręcący się topór przy starcie ---
 def pokaz_ekran_ladowania():
     ekran = st.empty()
     try:
@@ -65,27 +77,27 @@ def pokaz_ekran_ladowania():
                     <img src="data:image/gif;base64,{data_url}" width="150">
                     <h3 style='margin-top: 20px; color: #555;'>Topór pracuje... Rąbiemy dane z RSPO! 🪓</h3>
                 </div>
-                """, 
-                unsafe_allow_html=True
-            )
+                """, unsafe_allow_html=True)
         return ekran
     except FileNotFoundError:
         return ekran
 
-# 1. ŁADOWANIE BAZY I EKRAN POCZEKAJKI
+# Ladowanie bazy z animacją
 ekran_ladowania = pokaz_ekran_ladowania()
 baza_rspo = wczytaj_baze_rspo()
 if ekran_ladowania:
     ekran_ladowania.empty()
 
-# --- Właściwy interfejs aplikacji ---
-st.title("🏫 Wzbogacanie danych szkół z RSPO")
-st.write("Wgraj swój plik ze szkołami, wybierz odpowiednie kolumny i dopasuj brakujące informacje.")
+
+# --- 4. GŁÓWNY INTERFEJS ---
+st.title("🏫 Wzbogacanie danych szkół z RSPO (Tinder Mode)")
+st.write("Wgraj plik, ustaw czułość i decyduj o przypadkach granicznych!")
 
 if baza_rspo is not None:
-    st.info(f"✅ Baza RSPO wczytana poprawnie ({len(baza_rspo)} placówek). Moduł NLP aktywny.")
+    st.info(f"✅ Baza RSPO wczytana poprawnie ({len(baza_rspo)} placówek).")
     
-    uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel lub CSV)", type=["csv", "xlsx"])
+    # Wyczyszczenie sesji przy wgraniu nowego pliku
+    uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel/CSV)", type=["csv", "xlsx"], on_change=zresetuj_sesje)
 
     if uploaded_file is not None:
         try:
@@ -96,140 +108,201 @@ if baza_rspo is not None:
                 
             kolumny = df_uploaded.columns.tolist()
             
-            st.markdown("---")
-            st.subheader("Krok 1: Przypisz kolumny ze swojego pliku")
-            
-            kol_nazwa = st.selectbox("W której kolumnie masz NAZWĘ szkoły? (Wybierz 1 kolumnę)", kolumny)
-            kol_adres_lista = st.multiselect("W których kolumnach masz ADRES? (Możesz wybrać wiele)", kolumny)
+            # --- PANEL STEROWANIA ---
+            if st.session_state.df_result is None: # Pokazuj panel tylko jeśli jeszcze nie przeprowadzono analizy
+                st.markdown("### Krok 1: Kolumny i Zmienne")
+                col_a1, col_a2 = st.columns(2)
+                with col_a1:
+                    kol_nazwa = st.selectbox("W której kolumnie masz NAZWĘ szkoły?", kolumny)
+                with col_a2:
+                    kol_adres_lista = st.multiselect("W których kolumnach masz ADRES?", kolumny)
 
-            if kol_nazwa and kol_adres_lista:
-                with st.expander("👀 Kliknij, aby zobaczyć podgląd wybranych danych", expanded=False):
-                    kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
-                    st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
+                st.markdown("### Krok 2: Czego szukamy i Próg czułości")
+                szukaj_wszystko = st.checkbox("Dociągnij wszystko (RSPO, Telefon, E-mail, WWW)", value=True)
+                
+                szukaj_rspo, szukaj_telefon, szukaj_email, szukaj_www = True, True, True, True
+                if not szukaj_wszystko:
+                    cc1, cc2, cc3, cc4 = st.columns(4)
+                    with cc1: szukaj_rspo = st.checkbox("Numer RSPO", value=True)
+                    with cc2: szukaj_telefon = st.checkbox("Telefon")
+                    with cc3: szukaj_email = st.checkbox("E-mail")
+                    with cc4: szukaj_www = st.checkbox("Strona www")
 
-            st.markdown("---")
-            st.subheader("Krok 2: Jakie dane chcesz dociągnąć z bazy RSPO?")
-            szukaj_wszystko = st.checkbox("Wybierz wszystkie (Numer RSPO, Telefon, E-mail, WWW)", value=True)
-            
-            szukaj_rspo, szukaj_telefon, szukaj_email, szukaj_www = True, True, True, True
-            if not szukaj_wszystko:
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    szukaj_rspo = st.checkbox("Numer RSPO", value=True)
-                    szukaj_telefon = st.checkbox("Telefon")
-                with col_b:
-                    szukaj_email = st.checkbox("E-mail")
-                    szukaj_www = st.checkbox("Strona www")
+                prog_czulosci = st.slider("Wybierz próg pewności (Poniżej tego progu szkoły trafią do 'Tindera')", min_value=50, max_value=100, value=80, step=1)
 
-            st.markdown("---")
-            st.subheader("Krok 3: Czułość algorytmu")
-            st.write("Ustaw minimalny próg podobieństwa. Zbyt niska wartość może przypisać złe szkoły, zbyt wysoka – odrzucić poprawne z drobną literówką.")
-            prog_czulosci = st.slider("Wybierz próg pewności dopasowania (%)", min_value=50, max_value=100, value=80, step=1)
-
-            st.markdown("---")
-            if len(kol_adres_lista) == 0:
-                st.warning("Wybierz co najmniej jedną kolumnę w polu ADRES, aby móc rozpocząć.")
-            else:
                 if st.button("🔎 Rozpocznij dopasowywanie", type="primary"):
-                    
-                    opisy_dict = baza_rspo['Znormalizowany_Opis'].to_dict()
-                    my_bar = st.progress(0, text="Analizuję Twoje dane i dopasowuję placówki...")
-                    
-                    # Kontener na kręcącą się lupę
-                    ekran_szukania = st.empty()
-                    try:
-                        with open("search.gif", "rb") as f:
-                            search_data_url = base64.b64encode(f.read()).decode("utf-8")
-                        with ekran_szukania.container():
-                            st.markdown(
-                                f"""
-                                <div style='display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: 20px;'>
-                                    <img src="data:image/gif;base64,{search_data_url}" width="100">
-                                    <p style='color: #888; font-style: italic; margin-top: 10px;'>Algorytm przeczesuje tysiące rekordów...</p>
-                                </div>
-                                """, unsafe_allow_html=True)
-                    except FileNotFoundError:
-                        pass 
-                    
-                    wyniki_rspo, wyniki_telefon, wyniki_email, wyniki_www, wyniki_pewnosc = [], [], [], [], []
-                    licznik_znalezionych = 0
-                    licznik_brakow = 0
-                    total_rows = len(df_uploaded)
-                    
-                    for index, row in df_uploaded.iterrows():
-                        if index % 5 == 0 or index == total_rows - 1:
-                            my_bar.progress((index + 1) / total_rows, text=f"Dopasowuję: {index+1} / {total_rows}")
+                    if len(kol_adres_lista) == 0:
+                        st.warning("Wybierz co najmniej jedną kolumnę w polu ADRES!")
+                    else:
+                        opisy_dict = baza_rspo['Znormalizowany_Opis'].to_dict()
+                        my_bar = st.progress(0, text="Analizuję Twoje dane i dopasowuję placówki...")
                         
-                        brudna_nazwa = str(row[kol_nazwa])
-                        fragmenty_adresu = [str(row[col]).strip() for col in kol_adres_lista if pd.notna(row[col]) and str(row[col]).strip() != ""]
-                        brudny_adres = " ".join(fragmenty_adresu)
+                        ekran_szukania = st.empty()
+                        try:
+                            with open("search.gif", "rb") as f:
+                                search_data_url = base64.b64encode(f.read()).decode("utf-8")
+                            with ekran_szukania.container():
+                                st.markdown(f"<div style='display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: 20px;'><img src='data:image/gif;base64,{search_data_url}' width='100'><p style='color: #888; font-style: italic; margin-top: 10px;'>Algorytm przeczesuje tysiące rekordów...</p></div>", unsafe_allow_html=True)
+                        except FileNotFoundError:
+                            pass 
                         
-                        szukana_fraza = brudna_nazwa + ' ' + brudny_adres
-                        znormalizowana_fraza = normalizuj_tekst(szukana_fraza)
+                        # Inicjalizacja nowych kolumn
+                        df_uploaded['Dopasowane: Numer RSPO'] = "Nie znaleziono"
+                        df_uploaded['Dopasowane: Telefon'] = "-"
+                        df_uploaded['Dopasowane: E-mail'] = "-"
+                        df_uploaded['Dopasowane: Strona www'] = "-"
+                        df_uploaded['Pewność dopasowania (%)'] = 0
+                        df_uploaded['Status'] = "Brak kandydata"
                         
-                        najlepsze = process.extractOne(znormalizowana_fraza, opisy_dict, scorer=fuzz.token_set_ratio)
+                        # Zmienne ukryte dla Tindera
+                        df_uploaded['_Oryginalna_Nazwa'] = ""
+                        df_uploaded['_Oryginalny_Adres'] = ""
+                        df_uploaded['_Kandydat_RSPO'] = ""
+                        df_uploaded['_Kandydat_Telefon'] = ""
+                        df_uploaded['_Kandydat_Email'] = ""
+                        df_uploaded['_Kandydat_WWW'] = ""
+                        df_uploaded['_Kandydat_Opis'] = ""
                         
-                        # Zapisujemy pewność dopasowania niezależnie od tego czy spełnia próg czy nie
-                        pewnosc = najlepsze[1] if najlepsze else 0
-                        wyniki_pewnosc.append(pewnosc)
+                        total_rows = len(df_uploaded)
                         
-                        if najlepsze and pewnosc >= prog_czulosci:
-                            licznik_znalezionych += 1
-                            dopasowany_indeks = najlepsze[2]
-                            dopasowany_wiersz = baza_rspo.loc[dopasowany_indeks]
+                        # GŁÓWNA PĘTLA
+                        for index, row in df_uploaded.iterrows():
+                            if index % 5 == 0 or index == total_rows - 1:
+                                my_bar.progress((index + 1) / total_rows, text=f"Dopasowuję: {index+1} / {total_rows}")
                             
-                            wyniki_rspo.append(dopasowany_wiersz.get('Numer RSPO', 'Brak'))
-                            wyniki_telefon.append(dopasowany_wiersz.get('Telefon', 'Brak'))
-                            wyniki_email.append(dopasowany_wiersz.get('E-mail', 'Brak'))
-                            wyniki_www.append(dopasowany_wiersz.get('Strona www', 'Brak'))
-                        else:
-                            licznik_brakow += 1
-                            wyniki_rspo.append("Nie znaleziono")
-                            wyniki_telefon.append("-")
-                            wyniki_email.append("-")
-                            wyniki_www.append("-")
+                            brudna_nazwa = str(row[kol_nazwa])
+                            fragmenty_adresu = [str(row[col]).strip() for col in kol_adres_lista if pd.notna(row[col]) and str(row[col]).strip() != ""]
+                            brudny_adres = " ".join(fragmenty_adresu)
+                            
+                            szukana_fraza = brudna_nazwa + ' ' + brudny_adres
+                            znormalizowana_fraza = normalizuj_tekst(szukana_fraza)
+                            
+                            najlepsze = process.extractOne(znormalizowana_fraza, opisy_dict, scorer=fuzz.token_set_ratio)
+                            
+                            # Zapisanie surowych danych wejściowych
+                            df_uploaded.at[index, '_Oryginalna_Nazwa'] = brudna_nazwa
+                            df_uploaded.at[index, '_Oryginalny_Adres'] = brudny_adres
+                            
+                            if najlepsze:
+                                pewnosc = najlepsze[1]
+                                dopasowany_indeks = najlepsze[2]
+                                dopasowany_wiersz = baza_rspo.loc[dopasowany_indeks]
+                                
+                                df_uploaded.at[index, 'Pewność dopasowania (%)'] = pewnosc
+                                df_uploaded.at[index, '_Kandydat_Opis'] = dopasowany_wiersz['Pelny_Opis']
+                                df_uploaded.at[index, '_Kandydat_RSPO'] = dopasowany_wiersz.get('Numer RSPO', 'Brak')
+                                df_uploaded.at[index, '_Kandydat_Telefon'] = dopasowany_wiersz.get('Telefon', 'Brak')
+                                df_uploaded.at[index, '_Kandydat_Email'] = dopasowany_wiersz.get('E-mail', 'Brak')
+                                df_uploaded.at[index, '_Kandydat_WWW'] = dopasowany_wiersz.get('Strona www', 'Brak')
+                                
+                                if pewnosc >= prog_czulosci:
+                                    # Automatyczny sukces
+                                    df_uploaded.at[index, 'Status'] = "✅ Auto-Dopasowano"
+                                    df_uploaded.at[index, 'Dopasowane: Numer RSPO'] = dopasowany_wiersz.get('Numer RSPO', 'Brak')
+                                    df_uploaded.at[index, 'Dopasowane: Telefon'] = dopasowany_wiersz.get('Telefon', 'Brak')
+                                    df_uploaded.at[index, 'Dopasowane: E-mail'] = dopasowany_wiersz.get('E-mail', 'Brak')
+                                    df_uploaded.at[index, 'Dopasowane: Strona www'] = dopasowany_wiersz.get('Strona www', 'Brak')
+                                else:
+                                    # Przypadek do weryfikacji ręcznej (Tinder)
+                                    df_uploaded.at[index, 'Status'] = "⚠️ Do weryfikacji"
 
-                    # Zrzucamy kolumny wynikowe
-                    if szukaj_rspo: df_uploaded['Dopasowane: Numer RSPO'] = wyniki_rspo
-                    if szukaj_telefon: df_uploaded['Dopasowane: Telefon'] = wyniki_telefon
-                    if szukaj_email: df_uploaded['Dopasowane: E-mail'] = wyniki_email
-                    if szukaj_www: df_uploaded['Dopasowane: Strona www'] = wyniki_www
+                        ekran_szukania.empty()
+                        my_bar.empty()
+                        
+                        # ZAPISANIE WYNIKÓW DO PAMIĘCI SESJI
+                        st.session_state.df_result = df_uploaded
+                        # Wyłapanie indeksów do "Tindera"
+                        st.session_state.to_review_indices = df_uploaded[df_uploaded['Status'] == "⚠️ Do weryfikacji"].index.tolist()
+                        st.session_state.review_index = 0
+                        
+                        # Odświeżenie interfejsu
+                        st.rerun()
+
+            # --- EKRAN WYNIKÓW I TINDER (Pojawia się po analizie) ---
+            if st.session_state.df_result is not None:
+                
+                df_res = st.session_state.df_result
+                total_rows = len(df_res)
+                auto_count = len(df_res[df_res['Status'] == '✅ Auto-Dopasowano'])
+                manual_count = len(df_res[df_res['Status'] == '🛠️ Ręcznie dopasowano'])
+                rejected_count = len(df_res[(df_res['Status'] == '⚠️ Do weryfikacji') | (df_res['Status'] == '❌ Odrzucono') | (df_res['Status'] == 'Brak kandydata')])
+                
+                # DASHBOARD STATYSTYCZNY
+                st.markdown("### 📊 Podsumowanie wyników")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Wszystkie wiersze", total_rows)
+                c2.metric("✅ Dopasowano", auto_count + manual_count, f"{round(((auto_count+manual_count)/total_rows)*100, 1)}%")
+                c3.metric("⚠️ Oczekuje na weryfikację", len(st.session_state.to_review_indices) - st.session_state.review_index)
+                c4.metric("❌ Brak / Odrzucono", rejected_count)
+                
+                st.markdown("---")
+                
+                # --- TRYB TINDER ---
+                st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder dla Szkół)")
+                
+                if st.session_state.review_index < len(st.session_state.to_review_indices):
+                    # Pobranie wiersza, który aktualnie oceniamy
+                    current_idx = st.session_state.to_review_indices[st.session_state.review_index]
+                    row_data = df_res.loc[current_idx]
                     
-                    # NOWOŚĆ: Dodajemy kolumnę z procentową pewnością
-                    df_uploaded['Pewność dopasowania (%)'] = wyniki_pewnosc
+                    st.warning(f"Szkoła {st.session_state.review_index + 1} z {len(st.session_state.to_review_indices)} do weryfikacji:")
                     
-                    ekran_szukania.empty()
-                    
-                    # --- DASHBOARD STATYSTYCZNY ---
-                    st.success("🎉 Dopasowanie zakończone!")
-                    st.markdown("### 📊 Podsumowanie wyników")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric(label="Wszystkie wiersze", value=total_rows)
-                    with col2:
-                        st.metric(label="✅ Dopasowano poprawnie", value=licznik_znalezionych, delta=f"{round((licznik_znalezionych/total_rows)*100, 1)}%")
-                    with col3:
-                        st.metric(label="❌ Nie znaleziono / Poniżej progu", value=licznik_brakow, delta=f"-{round((licznik_brakow/total_rows)*100, 1)}%", delta_color="inverse")
-                    
-                    st.markdown("---")
-                    
-                    # Generowanie pliku Excel
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df_uploaded.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
-                    gotowy_excel = output.getvalue()
-                    
-                    st.download_button(
-                        label="📥 Pobierz Gotowy Plik (.xlsx)",
-                        data=gotowy_excel,
-                        file_name="Rozszerzone_Szkoly_Z_RSPO.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        type="primary"
-                    )
-                    
-                    st.write("👀 Podgląd gotowego pliku (zwróć uwagę na kolumnę 'Pewność dopasowania (%)' na samym końcu):")
-                    st.dataframe(df_uploaded.head(10))
+                    col_t1, col_t2 = st.columns(2)
+                    with col_t1:
+                        st.info(f"**TWOJE DANE (Z pliku)**\n\n🏫 **Nazwa:** {row_data['_Oryginalna_Nazwa']}\n\n📍 **Adres:** {row_data['_Oryginalny_Adres']}")
+                    with col_t2:
+                        st.success(f"**NAJLEPSZY KANDYDAT RSPO** (Pewność: {row_data['Pewność dopasowania (%)']}%)\n\n🏫 **Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n🔢 **RSPO:** {row_data['_Kandydat_RSPO']}")
+                        
+                    # Przyciski Decyzyjne
+                    c_btn1, c_btn2, c_btn3 = st.columns([1, 1, 2])
+                    if c_btn1.button("✅ TAK, to jest to!", use_container_width=True):
+                        # Nadpisanie danych kandydata do głównych kolumn
+                        st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
+                        st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
+                        st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
+                        st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
+                        st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
+                        
+                        st.session_state.review_index += 1
+                        st.rerun() # Odświeża stronę by pokazać kolejną szkołę
+                        
+                    if c_btn2.button("❌ NIE, odrzuć", use_container_width=True):
+                        st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
+                        st.session_state.review_index += 1
+                        st.rerun()
+                else:
+                    if len(st.session_state.to_review_indices) > 0:
+                        st.success("🎉 Przejrzano wszystkie propozycje graniczne! Plik jest gotowy do pobrania.")
+                    else:
+                        st.success("🎉 Algorytm był bardzo pewny swoich decyzji! Brak szkół granicznych do weryfikacji.")
+
+                st.markdown("---")
+                
+                # --- POBIERANIE WYNIKÓW ---
+                # Czyszczenie pliku z roboczych kolumn (by Excel był czysty)
+                df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'])
+                
+                # Zrzucanie zaktualizowanego DataFrame do Excela
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_do_pobrania.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
+                gotowy_excel = output.getvalue()
+                
+                st.download_button(
+                    label="📥 Pobierz Gotowy, Zweryfikowany Plik (.xlsx)",
+                    data=gotowy_excel,
+                    file_name="Rozszerzone_Szkoly_Z_RSPO.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    use_container_width=True
+                )
+                
+                if st.button("🔄 Wgraj nowy plik / Zresetuj panel"):
+                    zresetuj_sesje()
+                    st.rerun()
+
+                st.write("👀 Podgląd obecnego stanu pliku:")
+                st.dataframe(df_do_pobrania.head(15))
 
         except Exception as e:
             st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
