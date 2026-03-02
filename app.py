@@ -7,7 +7,7 @@ import base64
 from datetime import datetime
 
 # --- 1. KONFIGURACJA STRONY, CSS I INICJALIZACJA PAMIĘCI SESJI ---
-st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", page_icon="🏫")
+st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", page_icon="🏫", initial_sidebar_state="expanded")
 
 # Niestandardowy kod CSS dodający nowoczesny styl (Glassmorphism, akcenty)
 st.markdown("""
@@ -29,9 +29,10 @@ st.markdown("""
     .step-2 { border-left: 6px solid #50E3C2; } /* Miętowy akcent */
     .step-3 { border-left: 6px solid #B8E986; } /* Zielony akcent */
     
-    /* Ukrycie domyślnego paska górnego Streamlit (dla czystszego wyglądu głównego) */
+    /* Ukrycie TYLKO domyślnego menu Streamlit, ale przywrócenie widoczności nagłówka z przyciskiem paska! */
     #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
+    .stDeployButton {display:none;}
+    header {background-color: transparent !important;}
     
     /* Zwiększenie przestrzeni i wyśrodkowanie tytułu głównego */
     .main-title {
@@ -56,7 +57,7 @@ if 'to_review_indices' not in st.session_state:
     st.session_state.to_review_indices = []
 if 'review_index' not in st.session_state:
     st.session_state.review_index = 0
-# NOWOŚĆ: Zmienne do historii plików
+# Zmienne do historii plików
 if 'history_rspo' not in st.session_state:
     st.session_state.history_rspo = []
 if 'view_history_item' not in st.session_state:
@@ -147,7 +148,6 @@ with st.sidebar:
             st.caption("Brak historii. Przeprowadź pierwszą analizę.")
         else:
             for item in st.session_state.history_rspo:
-                # Wyświetlamy małe przyciski z nazwą pliku i godziną
                 if st.button(f"📄 {item['filename']} \n({item['time']})", key=f"hist_{item['id']}", use_container_width=True):
                     st.session_state.view_history_item = item
                     st.session_state.page = 'history_view'
@@ -210,7 +210,6 @@ elif st.session_state.page == 'history_view':
     
     df_res = item['df_ref']
     
-    # Generowanie gotowego pliku do pobrania
     df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'], errors='ignore')
     
     output = io.BytesIO()
@@ -384,12 +383,11 @@ elif st.session_state.page == 'rspo_tool':
                                 'id': datetime.now().strftime("%Y%m%d%H%M%S"),
                                 'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                 'filename': uploaded_file.name,
-                                'df_ref': st.session_state.df_result # Zapisujemy referencję (będzie się sama uaktualniać po Tinderze)
+                                'df_ref': st.session_state.df_result 
                             }
                             st.session_state.history_rspo.insert(0, nowa_historia)
                             if len(st.session_state.history_rspo) > 10:
                                 st.session_state.history_rspo.pop()
-                            # -------------------------
                             
                             st.rerun()
 
