@@ -4,12 +4,13 @@ from thefuzz import process, fuzz
 import io
 import re
 import base64
+import time
 from datetime import datetime
 
 # --- 1. KONFIGURACJA STRONY, CSS I INICJALIZACJA PAMIĘCI SESJI ---
 st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", page_icon="🏫", initial_sidebar_state="expanded")
 
-# Niestandardowy kod CSS dodający nowoczesny styl (Zaawansowany Glassmorphism, animacje, akcenty)
+# Niestandardowy kod CSS dodający nowoczesny styl (Zaawansowany Glassmorphism, animacje Tindera, akcenty)
 st.markdown("""
 <style>
     /* Ukrycie domyślnego menu Streamlit */
@@ -142,7 +143,31 @@ st.markdown("""
         border-color: #4A90E2 !important;
     }
 
-    /* Animacje globalne */
+    /* --- ANIMACJE TINDERA --- */
+    @keyframes slideInCard {
+        0% { transform: translateY(40px) scale(0.95); opacity: 0; }
+        100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    @keyframes swipeRight {
+        0% { transform: translateX(0) rotate(0deg); opacity: 1; }
+        100% { transform: translateX(150%) rotate(20deg); opacity: 0; }
+    }
+    @keyframes swipeLeft {
+        0% { transform: translateX(0) rotate(0deg); opacity: 1; }
+        100% { transform: translateX(-150%) rotate(-20deg); opacity: 0; }
+    }
+
+    .tinder-card-in {
+        animation: slideInCard 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    .tinder-card-out-right {
+        animation: swipeRight 0.4s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+    }
+    .tinder-card-out-left {
+        animation: swipeLeft 0.4s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+    }
+
+    /* Globalne */
     @keyframes fadeInDown {
         from { opacity: 0; transform: translateY(-20px); }
         to { opacity: 1; transform: translateY(0); }
@@ -174,6 +199,12 @@ if 'to_review_indices' not in st.session_state:
 if 'review_index' not in st.session_state:
     st.session_state.review_index = 0
 
+# Zmienne do obsługi płynnej animacji swipe'owania
+if 'is_animating' not in st.session_state:
+    st.session_state.is_animating = False
+if 'swipe_direction' not in st.session_state:
+    st.session_state.swipe_direction = None
+
 # --- Zmienne do historii plików ---
 if 'history_rspo' not in st.session_state:
     st.session_state.history_rspo = []
@@ -185,6 +216,8 @@ def zresetuj_wyniki():
     st.session_state.df_result = None
     st.session_state.to_review_indices = []
     st.session_state.review_index = 0
+    st.session_state.is_animating = False
+    st.session_state.swipe_direction = None
 
 # Funkcja "twardego" resetu (kiedy klikamy Wgraj Nowy Plik)
 def pelny_reset():
@@ -271,7 +304,7 @@ def pokaz_ekran_ladowania():
 # MENU BOCZNE (SIDEBAR) - DRZEWKO HISTORII
 # ==========================================
 with st.sidebar:
-    st.markdown("##Nawigacja")
+    st.markdown("## 🚀 Nawigacja")
     st.divider()
     
     if st.button("🏠 Strona Główna", use_container_width=True):
@@ -303,7 +336,7 @@ with st.sidebar:
 
 # STRONA GŁÓWNA
 if st.session_state.page == 'home':
-    st.markdown('<div class="main-title">ANALIZATOR SZKÓŁ</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">Nexus Analityczny Szkół</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-title">Wybierz moduł analityczny i rozpocznij przetwarzanie danych na nowym poziomie</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
@@ -364,7 +397,7 @@ elif st.session_state.page == 'history_view':
     )
     
     st.divider()
-    st.markdown("###Szybki Podgląd Danych")
+    st.markdown("### 👀 Szybki Podgląd Danych")
     st.dataframe(df_do_pobrania, use_container_width=True)
 
 
@@ -430,7 +463,7 @@ elif st.session_state.page == 'rspo_tool':
                             kol_adres_lista = st.multiselect("W których kolumnach masz ADRES? (możesz wybrać kilka)", kolumny)
 
                         if kol_nazwa and kol_adres_lista:
-                            st.caption("Podgląd wybranych danych (pierwsze 5 wierszy):")
+                            st.caption("👀 Podgląd wybranych danych (pierwsze 5 wierszy):")
                             kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
                             st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
                         elif kol_nazwa and not kol_adres_lista:
@@ -457,7 +490,7 @@ elif st.session_state.page == 'rspo_tool':
 
                     st.markdown("<br>", unsafe_allow_html=True)
 
-                    if st.button("Uruchom Silnik Dopasowujący", type="primary", use_container_width=True):
+                    if st.button("🚀 Uruchom Silnik Dopasowujący", type="primary", use_container_width=True):
                         if len(kol_adres_lista) == 0:
                             st.warning("⚠️ Wybierz co najmniej jedną kolumnę w polu ADRES!")
                         else:
@@ -579,21 +612,7 @@ elif st.session_state.page == 'rspo_tool':
                     st.divider()
                     
                     # --- TRYB TINDER ---
-                    st.markdown("### 🕵️‍♂️ Tryb Ręcznej Weryfikacji")
-                    
-                    anim_id = st.session_state.review_index
-                    
-                    st.markdown(f"""
-                    <style>
-                        @keyframes slideInCard_{anim_id} {{
-                            0% {{ transform: translateY(40px) scale(0.95); opacity: 0; }}
-                            100% {{ transform: translateY(0) scale(1); opacity: 1; }}
-                        }}
-                        .tinder-card-{anim_id} {{
-                            animation: slideInCard_{anim_id} 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-                        }}
-                    </style>
-                    """, unsafe_allow_html=True)
+                    st.markdown("### 🕵️‍♂️ Tryb Ręcznej Weryfikacji (Tinder Mode)")
                     
                     if st.session_state.review_index < len(st.session_state.to_review_indices):
                         current_idx = st.session_state.to_review_indices[st.session_state.review_index]
@@ -601,7 +620,16 @@ elif st.session_state.page == 'rspo_tool':
                         
                         st.info(f"🔎 Rekord **{st.session_state.review_index + 1}** z **{len(st.session_state.to_review_indices)}** wymaga Twojej decyzji:")
                         
-                        st.markdown(f'<div class="tinder-card-{anim_id}">', unsafe_allow_html=True)
+                        # --- BLOK LOGIKI ANIMACJI ---
+                        if st.session_state.is_animating:
+                            # Renderujemy kartę z odpowiednią animacją wyjścia
+                            css_class = f"tinder-card-out-{st.session_state.swipe_direction}"
+                            st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
+                        else:
+                            # Normalne wejście karty
+                            st.markdown('<div class="tinder-card-in">', unsafe_allow_html=True)
+                            
+                        # Widok samej Karty
                         with st.container(border=True):
                             col_t1, col_t2 = st.columns(2)
                             with col_t1:
@@ -613,37 +641,54 @@ elif st.session_state.page == 'rspo_tool':
                                 
                             st.write("") 
                             
-                            c_btn1, c_btn_undo, c_btn2 = st.columns([2, 1, 2])
-                            
-                            with c_btn_undo:
-                                if st.session_state.review_index > 0:
-                                    if st.button("⏪ Cofnij", use_container_width=True):
-                                        st.session_state.review_index -= 1
-                                        idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
-                                        st.session_state.df_result.at[idx_to_revert, 'Status'] = "⚠️ Do weryfikacji"
-                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Nie znaleziono"
-                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
-                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
-                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
+                            # Jeżeli obecnie NIE animujemy, pokazujemy przyciski. Jeżeli animujemy, ukrywamy je by zapobiec podwójnym kliknięciom
+                            if not st.session_state.is_animating:
+                                c_btn1, c_btn_undo, c_btn2 = st.columns([2, 1, 2])
+                                
+                                with c_btn_undo:
+                                    if st.session_state.review_index > 0:
+                                        if st.button("⏪ Cofnij", use_container_width=True):
+                                            st.session_state.review_index -= 1
+                                            idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
+                                            st.session_state.df_result.at[idx_to_revert, 'Status'] = "⚠️ Do weryfikacji"
+                                            st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Nie znaleziono"
+                                            st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
+                                            st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
+                                            st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
+                                            st.rerun()
+                                            
+                                with c_btn1:
+                                    if st.button("✅ TAK, Akceptuj", use_container_width=True, type="primary"):
+                                        st.session_state.swipe_direction = "right"
+                                        st.session_state.is_animating = True
                                         st.rerun()
                                         
-                            with c_btn1:
-                                if st.button("✅ TAK, Akceptuj", use_container_width=True, type="primary"):
-                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
-                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
-                                    st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
-                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
-                                    st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
-                                    st.session_state.review_index += 1
-                                    st.rerun()
-                                    
-                            with c_btn2:
-                                if st.button("❌ NIE, Odrzuć", use_container_width=True):
-                                    st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
-                                    st.session_state.review_index += 1
-                                    st.rerun()
+                                with c_btn2:
+                                    if st.button("❌ NIE, Odrzuć", use_container_width=True):
+                                        st.session_state.swipe_direction = "left"
+                                        st.session_state.is_animating = True
+                                        st.rerun()
+                                        
                         st.markdown('</div>', unsafe_allow_html=True)
-                        
+
+                        # Jeżeli jesteśmy w trakcie animacji wyjścia, usypiamy aplikację na czas trwania CSS, aktualizujemy DF i resetujemy
+                        if st.session_state.is_animating:
+                            time.sleep(0.4) # Czekamy aż animacja w CSS się odtworzy (400ms)
+                            
+                            if st.session_state.swipe_direction == "right":
+                                st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
+                                st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
+                                st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
+                                st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
+                                st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
+                            elif st.session_state.swipe_direction == "left":
+                                st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
+
+                            st.session_state.review_index += 1
+                            st.session_state.is_animating = False
+                            st.session_state.swipe_direction = None
+                            st.rerun()
+                            
                     else:
                         if len(st.session_state.to_review_indices) > 0:
                             st.success("🎉 Weryfikacja zakończona! Przejrzano wszystkie przypadki graniczne. Plik jest gotowy do pobrania.")
@@ -703,12 +748,8 @@ elif st.session_state.page == 'rspo_tool':
                         st.rerun()
 
                     st.write("")
-                    with st.expander("Podgląd obecnego stanu pliku (Top 15)", expanded=False):
+                    with st.expander("👀 Podgląd obecnego stanu pliku (Top 15)", expanded=False):
                         st.dataframe(df_do_pobrania.head(15), use_container_width=True)
 
             except Exception as e:
                 st.error(f"Wystąpił krytyczny problem przy przetwarzaniu Twojego pliku: {e}")
-
-
-
-
