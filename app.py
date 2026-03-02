@@ -579,7 +579,7 @@ elif st.session_state.page == 'rspo_tool':
                     st.divider()
                     
                     # --- TRYB TINDER ---
-                    st.markdown("### 🕵️‍♂️ Tryb Ręcznej Weryfikacji (Tinder Mode)")
+                    st.markdown("### 🕵️‍♂️ Tryb Ręcznej Weryfikacji")
                     
                     anim_id = st.session_state.review_index
                     
@@ -708,5 +708,6 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił krytyczny problem przy przetwarzaniu Twojego pliku: {e}")
+
 
 
