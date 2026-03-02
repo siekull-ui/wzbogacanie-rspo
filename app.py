@@ -493,39 +493,50 @@ elif st.session_state.page == 'rspo_tool':
                     st.markdown("---")
                     
 df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'])
-                    
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df_do_pobrania.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
-                    gotowy_excel = output.getvalue()
-                    
-                    # --- NOWOŚĆ: Pole do wpisania nazwy pliku ---
-                    st.markdown("### 💾 Pobieranie wyników")
-                    nazwa_uzytkownika = st.text_input("Podaj nazwę dla pliku końcowego:", value="Rozszerzone_Szkoly_Z_RSPO")
-                    
-                    # Zabezpieczenie - upewniamy się, że plik ma końcówkę .xlsx
-                    if nie nazwa_uzytkownika.endswith(".xlsx"):
-                        nazwa_pliku = nazwa_uzytkownika + ".xlsx"
-                    else:
-                        nazwa_pliku = nazwa_uzytkownika
-                    # ----------------------------------------------
-                    
-                    st.download_button(
-                        label=f"📥 Pobierz plik: {nazwa_pliku}",
-                        data=gotowy_excel,
-                        file_name=nazwa_pliku,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        type="primary",
-                        use_container_width=True
-                    )
-                    
-                    if st.button("🔄 Wgraj nowy plik / Zresetuj panel"):
-                        zresetuj_sesje()
-                        st.rerun()
 
-                    with st.expander("👀 Pokaż podgląd obecnego stanu pliku", expanded=True):
-                        st.dataframe(df_do_pobrania.head(15), use_container_width=True)
 
-            except Exception as e:
-                st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+output = io.BytesIO()
+
+with pd.ExcelWriter(output, engine='openpyxl') as writer:
+
+df_do_pobrania.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
+
+gotowy_excel = output.getvalue()
+
+
+st.download_button(
+
+label="📥 Pobierz Gotowy, Zweryfikowany Plik (.xlsx)",
+
+data=gotowy_excel,
+
+file_name="Rozszerzone_Szkoly_Z_RSPO.xlsx",
+
+mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+type="primary",
+
+use_container_width=True
+
+)
+
+
+if st.button("🔄 Wgraj nowy plik / Zresetuj panel"):
+
+zresetuj_sesje()
+
+st.rerun()
+
+
+
+with st.expander("👀 Pokaż podgląd obecnego stanu pliku", expanded=True):
+
+st.dataframe(df_do_pobrania.head(15), use_container_width=True)
+
+
+
+except Exception as e:
+
+st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+
 
