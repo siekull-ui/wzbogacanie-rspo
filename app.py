@@ -492,51 +492,28 @@ elif st.session_state.page == 'rspo_tool':
 
                     st.markdown("---")
                     
-df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'])
+                    df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'])
+                    
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df_do_pobrania.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
+                    gotowy_excel = output.getvalue()
+                    
+                    st.download_button(
+                        label="📥 Pobierz Gotowy, Zweryfikowany Plik (.xlsx)",
+                        data=gotowy_excel,
+                        file_name="Rozszerzone_Szkoly_Z_RSPO.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="primary",
+                        use_container_width=True
+                    )
+                    
+                    if st.button("🔄 Wgraj nowy plik / Zresetuj panel"):
+                        zresetuj_sesje()
+                        st.rerun()
 
+                    with st.expander("👀 Pokaż podgląd obecnego stanu pliku", expanded=True):
+                        st.dataframe(df_do_pobrania.head(15), use_container_width=True)
 
-output = io.BytesIO()
-
-with pd.ExcelWriter(output, engine='openpyxl') as writer:
-
-df_do_pobrania.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
-
-gotowy_excel = output.getvalue()
-
-
-st.download_button(
-
-label="📥 Pobierz Gotowy, Zweryfikowany Plik (.xlsx)",
-
-data=gotowy_excel,
-
-file_name="Rozszerzone_Szkoly_Z_RSPO.xlsx",
-
-mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-
-type="primary",
-
-use_container_width=True
-
-)
-
-
-if st.button("🔄 Wgraj nowy plik / Zresetuj panel"):
-
-zresetuj_sesje()
-
-st.rerun()
-
-
-
-with st.expander("👀 Pokaż podgląd obecnego stanu pliku", expanded=True):
-
-st.dataframe(df_do_pobrania.head(15), use_container_width=True)
-
-
-
-except Exception as e:
-
-st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
-
-
+            except Exception as e:
+                st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
