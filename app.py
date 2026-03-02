@@ -72,28 +72,22 @@ def pokaz_ekran_ladowania():
     except FileNotFoundError:
         return ekran
 
-# 1. POKAZUJEMY TOPÓR ZANIM ZACZNIE SIĘ ŁADOWANIE
+# 1. ŁADOWANIE BAZY I EKRAN POCZEKAJKI
 ekran_ladowania = pokaz_ekran_ladowania()
-
-# 2. ŁADUJEMY BAZĘ W TLE
 baza_rspo = wczytaj_baze_rspo()
-
-# 3. CZYŚCIMY EKRAN Z TOPOREM
 if ekran_ladowania:
     ekran_ladowania.empty()
 
 # --- Właściwy interfejs aplikacji ---
 st.title("🏫 Wzbogacanie danych szkół z RSPO")
-st.write("Wgraj swój plik ze szkołami, wybierz odpowiednie kolumny i pozwól systemowi dopasować brakujące informacje.")
+st.write("Wgraj swój plik ze szkołami, wybierz odpowiednie kolumny i dopasuj brakujące informacje.")
 
 if baza_rspo is not None:
-    st.info(f"✅ Baza RSPO wczytana poprawnie (zawiera {len(baza_rspo)} placówek). Moduł NLP aktywny.")
+    st.info(f"✅ Baza RSPO wczytana poprawnie ({len(baza_rspo)} placówek). Moduł NLP aktywny.")
     
     uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel lub CSV)", type=["csv", "xlsx"])
 
     if uploaded_file is not None:
-        st.success("Plik wgrany poprawnie!")
-        
         try:
             if uploaded_file.name.endswith('.csv'):
                 df_uploaded = pd.read_csv(uploaded_file, sep=None, engine='python')
@@ -106,29 +100,18 @@ if baza_rspo is not None:
             st.subheader("Krok 1: Przypisz kolumny ze swojego pliku")
             
             kol_nazwa = st.selectbox("W której kolumnie masz NAZWĘ szkoły? (Wybierz 1 kolumnę)", kolumny)
-            
-            kol_adres_lista = st.multiselect(
-                "W których kolumnach masz ADRES? (Możesz wybrać wiele: np. miasto, kod pocztowy, ulica)", 
-                kolumny
-            )
+            kol_adres_lista = st.multiselect("W których kolumnach masz ADRES? (Możesz wybrać wiele)", kolumny)
 
             if kol_nazwa and kol_adres_lista:
-                st.write("👀 **Podgląd wybranych danych (pierwsze 5 wierszy):**")
-                kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
-                st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
-            elif kol_nazwa and not kol_adres_lista:
-                st.info("Wybierz przynajmniej jedną kolumnę adresową, aby zobaczyć podgląd.")
+                with st.expander("👀 Kliknij, aby zobaczyć podgląd wybranych danych", expanded=False):
+                    kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
+                    st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
 
             st.markdown("---")
             st.subheader("Krok 2: Jakie dane chcesz dociągnąć z bazy RSPO?")
-            
             szukaj_wszystko = st.checkbox("Wybierz wszystkie (Numer RSPO, Telefon, E-mail, WWW)", value=True)
             
-            szukaj_rspo = True
-            szukaj_telefon = True
-            szukaj_email = True
-            szukaj_www = True
-            
+            szukaj_rspo, szukaj_telefon, szukaj_email, szukaj_www = True, True, True, True
             if not szukaj_wszystko:
                 col_a, col_b = st.columns(2)
                 with col_a:
@@ -139,16 +122,20 @@ if baza_rspo is not None:
                     szukaj_www = st.checkbox("Strona www")
 
             st.markdown("---")
-            
+            st.subheader("Krok 3: Czułość algorytmu")
+            st.write("Ustaw minimalny próg podobieństwa. Zbyt niska wartość może przypisać złe szkoły, zbyt wysoka – odrzucić poprawne z drobną literówką.")
+            prog_czulosci = st.slider("Wybierz próg pewności dopasowania (%)", min_value=50, max_value=100, value=80, step=1)
+
+            st.markdown("---")
             if len(kol_adres_lista) == 0:
                 st.warning("Wybierz co najmniej jedną kolumnę w polu ADRES, aby móc rozpocząć.")
             else:
-                if st.button("🔎 Rozpocznij dopasowywanie (z użyciem NLP)", type="primary"):
+                if st.button("🔎 Rozpocznij dopasowywanie", type="primary"):
                     
                     opisy_dict = baza_rspo['Znormalizowany_Opis'].to_dict()
                     my_bar = st.progress(0, text="Analizuję Twoje dane i dopasowuję placówki...")
                     
-                    # --- NOWOŚĆ: Kontener na GIF-a podczas wyszukiwania ---
+                    # Kontener na kręcącą się lupę
                     ekran_szukania = st.empty()
                     try:
                         with open("search.gif", "rb") as f:
@@ -160,14 +147,13 @@ if baza_rspo is not None:
                                     <img src="data:image/gif;base64,{search_data_url}" width="100">
                                     <p style='color: #888; font-style: italic; margin-top: 10px;'>Algorytm przeczesuje tysiące rekordów...</p>
                                 </div>
-                                """, 
-                                unsafe_allow_html=True
-                            )
+                                """, unsafe_allow_html=True)
                     except FileNotFoundError:
-                        pass # Jeśli nie dodasz pliku search.gif, po prostu pokaże się sam pasek postępu
-                    # -------------------------------------------------------
-
-                    wyniki_rspo, wyniki_telefon, wyniki_email, wyniki_www = [], [], [], []
+                        pass 
+                    
+                    wyniki_rspo, wyniki_telefon, wyniki_email, wyniki_www, wyniki_pewnosc = [], [], [], [], []
+                    licznik_znalezionych = 0
+                    licznik_brakow = 0
                     total_rows = len(df_uploaded)
                     
                     for index, row in df_uploaded.iterrows():
@@ -183,7 +169,12 @@ if baza_rspo is not None:
                         
                         najlepsze = process.extractOne(znormalizowana_fraza, opisy_dict, scorer=fuzz.token_set_ratio)
                         
-                        if najlepsze and najlepsze[1] > 80:
+                        # Zapisujemy pewność dopasowania niezależnie od tego czy spełnia próg czy nie
+                        pewnosc = najlepsze[1] if najlepsze else 0
+                        wyniki_pewnosc.append(pewnosc)
+                        
+                        if najlepsze and pewnosc >= prog_czulosci:
+                            licznik_znalezionych += 1
                             dopasowany_indeks = najlepsze[2]
                             dopasowany_wiersz = baza_rspo.loc[dopasowany_indeks]
                             
@@ -192,25 +183,41 @@ if baza_rspo is not None:
                             wyniki_email.append(dopasowany_wiersz.get('E-mail', 'Brak'))
                             wyniki_www.append(dopasowany_wiersz.get('Strona www', 'Brak'))
                         else:
+                            licznik_brakow += 1
                             wyniki_rspo.append("Nie znaleziono")
                             wyniki_telefon.append("-")
                             wyniki_email.append("-")
                             wyniki_www.append("-")
 
+                    # Zrzucamy kolumny wynikowe
                     if szukaj_rspo: df_uploaded['Dopasowane: Numer RSPO'] = wyniki_rspo
                     if szukaj_telefon: df_uploaded['Dopasowane: Telefon'] = wyniki_telefon
                     if szukaj_email: df_uploaded['Dopasowane: E-mail'] = wyniki_email
                     if szukaj_www: df_uploaded['Dopasowane: Strona www'] = wyniki_www
                     
-                    # CZYŚCIMY GIF-A WYSZUKIWANIA
+                    # NOWOŚĆ: Dodajemy kolumnę z procentową pewnością
+                    df_uploaded['Pewność dopasowania (%)'] = wyniki_pewnosc
+                    
                     ekran_szukania.empty()
                     
+                    # --- DASHBOARD STATYSTYCZNY ---
                     st.success("🎉 Dopasowanie zakończone!")
+                    st.markdown("### 📊 Podsumowanie wyników")
                     
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric(label="Wszystkie wiersze", value=total_rows)
+                    with col2:
+                        st.metric(label="✅ Dopasowano poprawnie", value=licznik_znalezionych, delta=f"{round((licznik_znalezionych/total_rows)*100, 1)}%")
+                    with col3:
+                        st.metric(label="❌ Nie znaleziono / Poniżej progu", value=licznik_brakow, delta=f"-{round((licznik_brakow/total_rows)*100, 1)}%", delta_color="inverse")
+                    
+                    st.markdown("---")
+                    
+                    # Generowanie pliku Excel
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         df_uploaded.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
-                    
                     gotowy_excel = output.getvalue()
                     
                     st.download_button(
@@ -221,8 +228,8 @@ if baza_rspo is not None:
                         type="primary"
                     )
                     
-                    st.write("Podgląd pierwszych 5 wierszy gotowego pliku:")
-                    st.dataframe(df_uploaded.head(5))
+                    st.write("👀 Podgląd gotowego pliku (zwróć uwagę na kolumnę 'Pewność dopasowania (%)' na samym końcu):")
+                    st.dataframe(df_uploaded.head(10))
 
         except Exception as e:
             st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
