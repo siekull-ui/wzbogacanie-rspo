@@ -271,7 +271,7 @@ def pokaz_ekran_ladowania():
 # MENU BOCZNE (SIDEBAR) - DRZEWKO HISTORII
 # ==========================================
 with st.sidebar:
-    st.markdown("##Nawigacja")
+    st.markdown("## Nawigacja")
     st.divider()
     
     if st.button("🏠 Strona Główna", use_container_width=True):
@@ -708,6 +708,7 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił krytyczny problem przy przetwarzaniu Twojego pliku: {e}")
+
 
 
 
