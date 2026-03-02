@@ -111,11 +111,13 @@ if baza_rspo is not None:
             # --- PANEL STEROWANIA ---
             if st.session_state.df_result is None: # Pokazuj panel tylko jeśli jeszcze nie przeprowadzono analizy
                 st.markdown("### Krok 1: Kolumny i Zmienne")
-                col_a1, col_a2 = st.columns(2)
-                with col_a1:
-                    kol_nazwa = st.selectbox("W której kolumnie masz NAZWĘ szkoły?", kolumny)
-                with col_a2:
-                    kol_adres_lista = st.multiselect("W których kolumnach masz ADRES?", kolumny)
+               kol_nazwa = st.selectbox("W której kolumnie masz NAZWĘ szkoły? (Wybierz 1 kolumnę)", kolumny)
+            kol_adres_lista = st.multiselect("W których kolumnach masz ADRES? (Możesz wybrać wiele)", kolumny)
+
+            if kol_nazwa and kol_adres_lista:
+                with st.expander("👀 Kliknij, aby zobaczyć podgląd wybranych danych", expanded=False):
+                    kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
+                    st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
 
                 st.markdown("### Krok 2: Czego szukamy i Próg czułości")
                 szukaj_wszystko = st.checkbox("Dociągnij wszystko (RSPO, Telefon, E-mail, WWW)", value=True)
@@ -306,3 +308,4 @@ if baza_rspo is not None:
 
         except Exception as e:
             st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+
