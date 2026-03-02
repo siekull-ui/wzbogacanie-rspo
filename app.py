@@ -303,7 +303,7 @@ with st.sidebar:
 
 # STRONA GŁÓWNA
 if st.session_state.page == 'home':
-    st.markdown('<div class="main-title">Nexus Analityczny Szkół</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">ANALIZATOR SZKÓŁ</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-title">Wybierz moduł analityczny i rozpocznij przetwarzanie danych na nowym poziomie</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
@@ -708,3 +708,4 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił krytyczny problem przy przetwarzaniu Twojego pliku: {e}")
+
