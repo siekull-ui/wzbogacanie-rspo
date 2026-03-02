@@ -117,6 +117,15 @@ if baza_rspo is not None:
                 with col_a2:
                     kol_adres_lista = st.multiselect("W których kolumnach masz ADRES?", kolumny)
 
+                # --- PRZYWRÓCONY PODGLĄD DANYCH W KROKU 1 ---
+                if kol_nazwa and kol_adres_lista:
+                    st.write("👀 **Podgląd wybranych danych (pierwsze 5 wierszy):**")
+                    kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
+                    st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
+                elif kol_nazwa and not kol_adres_lista:
+                    st.info("Wybierz przynajmniej jedną kolumnę adresową, aby zobaczyć podgląd.")
+                # --------------------------------------------
+
                 st.markdown("### Krok 2: Czego szukamy i Próg czułości")
                 szukaj_wszystko = st.checkbox("Dociągnij wszystko (RSPO, Telefon, E-mail, WWW)", value=True)
                 
@@ -129,6 +138,8 @@ if baza_rspo is not None:
                     with cc4: szukaj_www = st.checkbox("Strona www")
 
                 prog_czulosci = st.slider("Wybierz próg pewności (Poniżej tego progu szkoły trafią do 'Tindera')", min_value=50, max_value=100, value=80, step=1)
+
+                st.markdown("---")
 
                 if st.button("🔎 Rozpocznij dopasowywanie", type="primary"):
                     if len(kol_adres_lista) == 0:
@@ -279,7 +290,7 @@ if baza_rspo is not None:
                 st.markdown("---")
                 
                 # --- POBIERANIE WYNIKÓW ---
-                # Czyszczenie pliku z roboczych kolumn (by Excel był czysty)
+                # Czyszczenie pliku z roboczych kolumn
                 df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'])
                 
                 # Zrzucanie zaktualizowanego DataFrame do Excela
