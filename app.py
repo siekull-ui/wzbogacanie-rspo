@@ -325,21 +325,19 @@ elif st.session_state.page == 'rspo_tool':
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     
-                   # --- TRYB TINDER ---
+                    # --- TRYB TINDER ---
                     st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder)")
                     
-                    # Dynamiczny klucz animacji zależny od indeksu
-                    anim_id = st.session_state.review_index
-                    
-                    st.markdown(f"""
+                    # Wstrzyknięcie CSS dla efektu przesuwania/wskakiwania karty
+                    st.markdown("""
                     <style>
-                        @keyframes slideInCard_{anim_id} {{
-                            0% {{ transform: translateY(30px) scale(0.98); opacity: 0; }}
-                            100% {{ transform: translateY(0) scale(1); opacity: 1; }}
+                        @keyframes slideInCard {
+                            0% { transform: translateY(40px) scale(0.95); opacity: 0; }
+                            100% { transform: translateY(0) scale(1); opacity: 1; }
                         }
-                        .tinder-card-{anim_id} {{
-                            animation: slideInCard_{anim_id} 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
-                        }}
+                        .tinder-animated-card {
+                            animation: slideInCard 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+                        }
                     </style>
                     """, unsafe_allow_html=True)
                     
@@ -349,8 +347,8 @@ elif st.session_state.page == 'rspo_tool':
                         
                         st.warning(f"Szkoła {st.session_state.review_index + 1} z {len(st.session_state.to_review_indices)} do weryfikacji:")
                         
-                        # Zastosowanie unikalnej klasy dla tego konkretnego indeksu
-                        st.markdown(f'<div class="tinder-card-{anim_id}">', unsafe_allow_html=True)
+                        # Otwarcie animowanego kontenera karty
+                        st.markdown('<div class="tinder-animated-card">', unsafe_allow_html=True)
                         with st.container(border=True):
                             col_t1, col_t2 = st.columns(2)
                             with col_t1:
@@ -358,16 +356,23 @@ elif st.session_state.page == 'rspo_tool':
                             with col_t2:
                                 st.success(f"**NAJLEPSZY KANDYDAT RSPO** (Pewność: {row_data['Pewność dopasowania (%)']}%)\n\n🏫 **Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n🔢 **RSPO:** {row_data['_Kandydat_RSPO']}")
                                 
-                            st.write("") 
+                            st.write("") # Spacing
                             
-                            c_btn_undo, c_btn1, c_btn2 = st.columns([1, 2, 2])
+                            # Dodanie przycisku Cofnij (układ 1:2:2)
+                            c_btn1, c_btn_undo, c_btn2 = st.columns([2, 1, 2])
                             
                             with c_btn_undo:
                                 if st.session_state.review_index > 0:
                                     if st.button("⏪ Cofnij", use_container_width=True):
+                                        # Zmniejszamy indeks o 1
                                         st.session_state.review_index -= 1
                                         idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
+                                        # Czyścimy decyzję w głównej tabeli
                                         st.session_state.df_result.at[idx_to_revert, 'Status'] = "⚠️ Do weryfikacji"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Nie znaleziono"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
                                         st.rerun()
                                         
                             with c_btn1:
@@ -377,6 +382,7 @@ elif st.session_state.page == 'rspo_tool':
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
                                     st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
+                                    
                                     st.session_state.review_index += 1
                                     st.rerun()
                                     
@@ -385,6 +391,8 @@ elif st.session_state.page == 'rspo_tool':
                                     st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
                                     st.session_state.review_index += 1
                                     st.rerun()
+                                    
+                        # Zamknięcie animowanego kontenera
                         st.markdown('</div>', unsafe_allow_html=True)
                         
                     else:
@@ -430,6 +438,7 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
+
 
 
 
