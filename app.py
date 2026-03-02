@@ -4,6 +4,7 @@ from thefuzz import process, fuzz
 import io
 import re
 import base64
+from datetime import datetime
 
 # --- 1. KONFIGURACJA STRONY, CSS I INICJALIZACJA PAMIĘCI SESJI ---
 st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", page_icon="🏫")
@@ -28,7 +29,7 @@ st.markdown("""
     .step-2 { border-left: 6px solid #50E3C2; } /* Miętowy akcent */
     .step-3 { border-left: 6px solid #B8E986; } /* Zielony akcent */
     
-    /* Ukrycie domyślnego paska górnego Streamlit (dla czystszego wyglądu) */
+    /* Ukrycie domyślnego paska górnego Streamlit (dla czystszego wyglądu głównego) */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     
@@ -46,6 +47,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Inicjalizacja stanu sesji
 if 'page' not in st.session_state:
     st.session_state.page = 'home'
 if 'df_result' not in st.session_state:
@@ -54,6 +56,11 @@ if 'to_review_indices' not in st.session_state:
     st.session_state.to_review_indices = []
 if 'review_index' not in st.session_state:
     st.session_state.review_index = 0
+# NOWOŚĆ: Zmienne do historii plików
+if 'history_rspo' not in st.session_state:
+    st.session_state.history_rspo = []
+if 'view_history_item' not in st.session_state:
+    st.session_state.view_history_item = None
 
 def zresetuj_sesje():
     st.session_state.df_result = None
@@ -121,6 +128,38 @@ def pokaz_ekran_ladowania():
     except FileNotFoundError:
         return ekran
 
+
+# ==========================================
+# MENU BOCZNE (SIDEBAR) - DRZEWKO HISTORII
+# ==========================================
+with st.sidebar:
+    st.markdown("## 🗂️ Menu Główne")
+    
+    if st.button("🏠 Strona Główna", use_container_width=True):
+        st.session_state.page = 'home'
+        st.rerun()
+        
+    st.markdown("---")
+    st.markdown("### 🕒 Ostatnie Analizy")
+    
+    with st.expander("🏫 Wzbogacanie RSPO", expanded=True):
+        if not st.session_state.history_rspo:
+            st.caption("Brak historii. Przeprowadź pierwszą analizę.")
+        else:
+            for item in st.session_state.history_rspo:
+                # Wyświetlamy małe przyciski z nazwą pliku i godziną
+                if st.button(f"📄 {item['filename']} \n({item['time']})", key=f"hist_{item['id']}", use_container_width=True):
+                    st.session_state.view_history_item = item
+                    st.session_state.page = 'history_view'
+                    st.rerun()
+
+    with st.expander("📊 Analiza 2"):
+        st.caption("Moduł w przygotowaniu...")
+
+    with st.expander("🗺️ Analiza 3"):
+        st.caption("Moduł w przygotowaniu...")
+
+
 # ==========================================
 # GŁÓWNA NAWIGACJA (STRONY)
 # ==========================================
@@ -156,10 +195,47 @@ if st.session_state.page == 'home':
             st.button("Zablokowane", key="btn3", use_container_width=True, disabled=True)
 
 
+# ==========================================
+# PODGLĄD HISTORYCZNY (HISTORIA)
+# ==========================================
+elif st.session_state.page == 'history_view':
+    item = st.session_state.view_history_item
+    
+    if st.button("⬅ Wróć do Menu Głównego"):
+        st.session_state.page = 'home'
+        st.rerun()
+        
+    st.title("🕒 Podgląd Zapisanej Analizy")
+    st.info(f"**Plik:** {item['filename']} | **Data wykonania:** {item['time']}")
+    
+    df_res = item['df_ref']
+    
+    # Generowanie gotowego pliku do pobrania
+    df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'], errors='ignore')
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_do_pobrania.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
+    gotowy_excel = output.getvalue()
+    
+    st.download_button(
+        label="📥 Pobierz Plik Ponownie (.xlsx)",
+        data=gotowy_excel,
+        file_name=f"Historia_{item['filename']}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="primary",
+        use_container_width=True
+    )
+    
+    st.markdown("### 👀 Podgląd Danych")
+    st.dataframe(df_do_pobrania, use_container_width=True)
+
+
+# ==========================================
 # STRONA NARZĘDZIA RSPO
+# ==========================================
 elif st.session_state.page == 'rspo_tool':
     
-    # Przycisk powrotu
     if st.button("⬅ Wróć do Menu Głównego"):
         st.session_state.page = 'home'
         st.rerun()
@@ -167,7 +243,6 @@ elif st.session_state.page == 'rspo_tool':
     st.title("🏫 Wzbogacanie danych szkół z RSPO")
     st.write("Wgraj plik, przypisz zmienne i decyduj o przypadkach granicznych!")
 
-    # Ladowanie bazy z animacją (uruchomi się tylko raz przy wejściu)
     ekran_ladowania = pokaz_ekran_ladowania()
     baza_rspo = wczytaj_baze_rspo()
     if ekran_ladowania:
@@ -190,7 +265,7 @@ elif st.session_state.page == 'rspo_tool':
                 # --- PANEL STEROWANIA ---
                 if st.session_state.df_result is None: 
                     
-                    # KROK 1 (Niebieski akcent)
+                    # KROK 1
                     with st.container(border=True):
                         st.markdown('<div class="step-header step-1">Krok 1: Mapowanie Zmiennych</div>', unsafe_allow_html=True)
                         col_a1, col_a2 = st.columns(2)
@@ -206,7 +281,7 @@ elif st.session_state.page == 'rspo_tool':
                         elif kol_nazwa and not kol_adres_lista:
                             st.info("Wybierz przynajmniej jedną kolumnę adresową, aby zobaczyć podgląd.")
 
-                    # KROK 2 (Miętowy akcent)
+                    # KROK 2
                     with st.container(border=True):
                         st.markdown('<div class="step-header step-2">Krok 2: Opcje dociągania danych</div>', unsafe_allow_html=True)
                         szukaj_wszystko = st.checkbox("Dociągnij wszystkie dane z RSPO (Numer, Telefon, E-mail, WWW)", value=True)
@@ -219,7 +294,7 @@ elif st.session_state.page == 'rspo_tool':
                             with cc3: szukaj_email = st.checkbox("E-mail")
                             with cc4: szukaj_www = st.checkbox("Strona www")
 
-                    # KROK 3 (Zielony akcent)
+                    # KROK 3
                     with st.container(border=True):
                         st.markdown('<div class="step-header step-3">Krok 3: Czułość algorytmu</div>', unsafe_allow_html=True)
                         st.write("Dostosuj tolerancję na błędy. Rekordy poniżej tego progu trafią do ręcznej weryfikacji.")
@@ -243,7 +318,6 @@ elif st.session_state.page == 'rspo_tool':
                             except FileNotFoundError:
                                 pass 
                             
-                            # Inicjalizacja nowych kolumn
                             df_uploaded['Dopasowane: Numer RSPO'] = "Nie znaleziono"
                             df_uploaded['Dopasowane: Telefon'] = "-"
                             df_uploaded['Dopasowane: E-mail'] = "-"
@@ -304,6 +378,19 @@ elif st.session_state.page == 'rspo_tool':
                             st.session_state.df_result = df_uploaded
                             st.session_state.to_review_indices = df_uploaded[df_uploaded['Status'] == "⚠️ Do weryfikacji"].index.tolist()
                             st.session_state.review_index = 0
+                            
+                            # --- ZAPIS DO HISTORII ---
+                            nowa_historia = {
+                                'id': datetime.now().strftime("%Y%m%d%H%M%S"),
+                                'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                'filename': uploaded_file.name,
+                                'df_ref': st.session_state.df_result # Zapisujemy referencję (będzie się sama uaktualniać po Tinderze)
+                            }
+                            st.session_state.history_rspo.insert(0, nowa_historia)
+                            if len(st.session_state.history_rspo) > 10:
+                                st.session_state.history_rspo.pop()
+                            # -------------------------
+                            
                             st.rerun()
 
                 # --- EKRAN WYNIKÓW I TINDER (Pojawia się po analizie) ---
@@ -328,16 +415,18 @@ elif st.session_state.page == 'rspo_tool':
                     # --- TRYB TINDER ---
                     st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder)")
                     
-                    # Wstrzyknięcie CSS dla efektu przesuwania/wskakiwania karty
-                    st.markdown("""
+                    # Dynamiczny klucz animacji
+                    anim_id = st.session_state.review_index
+                    
+                    st.markdown(f"""
                     <style>
-                        @keyframes slideInCard {
-                            0% { transform: translateY(40px) scale(0.95); opacity: 0; }
-                            100% { transform: translateY(0) scale(1); opacity: 1; }
-                        }
-                        .tinder-animated-card {
-                            animation: slideInCard 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-                        }
+                        @keyframes slideInCard_{anim_id} {{
+                            0% {{ transform: translateY(30px) scale(0.98); opacity: 0; }}
+                            100% {{ transform: translateY(0) scale(1); opacity: 1; }}
+                        }}
+                        .tinder-card-{anim_id} {{
+                            animation: slideInCard_{anim_id} 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+                        }}
                     </style>
                     """, unsafe_allow_html=True)
                     
@@ -347,8 +436,7 @@ elif st.session_state.page == 'rspo_tool':
                         
                         st.warning(f"Szkoła {st.session_state.review_index + 1} z {len(st.session_state.to_review_indices)} do weryfikacji:")
                         
-                        # Otwarcie animowanego kontenera karty
-                        st.markdown('<div class="tinder-animated-card">', unsafe_allow_html=True)
+                        st.markdown(f'<div class="tinder-card-{anim_id}">', unsafe_allow_html=True)
                         with st.container(border=True):
                             col_t1, col_t2 = st.columns(2)
                             with col_t1:
@@ -356,18 +444,15 @@ elif st.session_state.page == 'rspo_tool':
                             with col_t2:
                                 st.success(f"**NAJLEPSZY KANDYDAT RSPO** (Pewność: {row_data['Pewność dopasowania (%)']}%)\n\n🏫 **Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n🔢 **RSPO:** {row_data['_Kandydat_RSPO']}")
                                 
-                            st.write("") # Spacing
+                            st.write("") 
                             
-                            # Dodanie przycisku Cofnij (układ 1:2:2)
                             c_btn1, c_btn_undo, c_btn2 = st.columns([2, 1, 2])
                             
                             with c_btn_undo:
                                 if st.session_state.review_index > 0:
                                     if st.button("⏪ Cofnij", use_container_width=True):
-                                        # Zmniejszamy indeks o 1
                                         st.session_state.review_index -= 1
                                         idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
-                                        # Czyścimy decyzję w głównej tabeli
                                         st.session_state.df_result.at[idx_to_revert, 'Status'] = "⚠️ Do weryfikacji"
                                         st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Nie znaleziono"
                                         st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
@@ -382,7 +467,6 @@ elif st.session_state.page == 'rspo_tool':
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
                                     st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
-                                    
                                     st.session_state.review_index += 1
                                     st.rerun()
                                     
@@ -391,14 +475,11 @@ elif st.session_state.page == 'rspo_tool':
                                     st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
                                     st.session_state.review_index += 1
                                     st.rerun()
-                                    
-                        # Zamknięcie animowanego kontenera
                         st.markdown('</div>', unsafe_allow_html=True)
                         
                     else:
                         if len(st.session_state.to_review_indices) > 0:
                             st.success("🎉 Przejrzano wszystkie propozycje graniczne! Plik jest gotowy do pobrania.")
-                            # Możliwość cofnięcia z samego końca, jeśli ostatnia decyzja była błędna
                             if st.button("⏪ Cofnij ostatnią decyzję"):
                                 st.session_state.review_index -= 1
                                 idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
@@ -438,7 +519,3 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił problem przy przetwarzaniu Twojego pliku: {e}")
-
-
-
-
