@@ -4,7 +4,6 @@ from thefuzz import process, fuzz
 import io
 import re
 import base64
-import urllib.parse # NOWOŚĆ: Biblioteka do szyfrowania linków z mapą
 
 # --- 1. KONFIGURACJA STRONY I INICJALIZACJA PAMIĘCI SESJI ---
 st.set_page_config(page_title="Wzbogacanie danych z RSPO", layout="wide", page_icon="🏫")
@@ -97,6 +96,7 @@ st.write("Wgraj plik, ustaw czułość i decyduj o przypadkach granicznych!")
 if baza_rspo is not None:
     st.info(f"✅ Baza RSPO wczytana poprawnie ({len(baza_rspo)} placówek).")
     
+    # Wyczyszczenie sesji przy wgraniu nowego pliku
     uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel/CSV)", type=["csv", "xlsx"], on_change=zresetuj_sesje)
 
     if uploaded_file is not None:
@@ -109,7 +109,7 @@ if baza_rspo is not None:
             kolumny = df_uploaded.columns.tolist()
             
             # --- PANEL STEROWANIA ---
-            if st.session_state.df_result is None: 
+            if st.session_state.df_result is None: # Pokazuj panel tylko jeśli jeszcze nie przeprowadzono analizy
                 st.markdown("### Krok 1: Kolumny i Zmienne")
                 col_a1, col_a2 = st.columns(2)
                 with col_a1:
@@ -117,12 +117,14 @@ if baza_rspo is not None:
                 with col_a2:
                     kol_adres_lista = st.multiselect("W których kolumnach masz ADRES?", kolumny)
 
+                # --- PRZYWRÓCONY PODGLĄD DANYCH W KROKU 1 ---
                 if kol_nazwa and kol_adres_lista:
                     st.write("👀 **Podgląd wybranych danych (pierwsze 5 wierszy):**")
                     kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
                     st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
                 elif kol_nazwa and not kol_adres_lista:
                     st.info("Wybierz przynajmniej jedną kolumnę adresową, aby zobaczyć podgląd.")
+                # --------------------------------------------
 
                 st.markdown("### Krok 2: Czego szukamy i Próg czułości")
                 szukaj_wszystko = st.checkbox("Dociągnij wszystko (RSPO, Telefon, E-mail, WWW)", value=True)
@@ -155,6 +157,7 @@ if baza_rspo is not None:
                         except FileNotFoundError:
                             pass 
                         
+                        # Inicjalizacja nowych kolumn
                         df_uploaded['Dopasowane: Numer RSPO'] = "Nie znaleziono"
                         df_uploaded['Dopasowane: Telefon'] = "-"
                         df_uploaded['Dopasowane: E-mail'] = "-"
@@ -162,6 +165,7 @@ if baza_rspo is not None:
                         df_uploaded['Pewność dopasowania (%)'] = 0
                         df_uploaded['Status'] = "Brak kandydata"
                         
+                        # Zmienne ukryte dla Tindera
                         df_uploaded['_Oryginalna_Nazwa'] = ""
                         df_uploaded['_Oryginalny_Adres'] = ""
                         df_uploaded['_Kandydat_RSPO'] = ""
@@ -172,6 +176,7 @@ if baza_rspo is not None:
                         
                         total_rows = len(df_uploaded)
                         
+                        # GŁÓWNA PĘTLA
                         for index, row in df_uploaded.iterrows():
                             if index % 5 == 0 or index == total_rows - 1:
                                 my_bar.progress((index + 1) / total_rows, text=f"Dopasowuję: {index+1} / {total_rows}")
@@ -185,6 +190,7 @@ if baza_rspo is not None:
                             
                             najlepsze = process.extractOne(znormalizowana_fraza, opisy_dict, scorer=fuzz.token_set_ratio)
                             
+                            # Zapisanie surowych danych wejściowych
                             df_uploaded.at[index, '_Oryginalna_Nazwa'] = brudna_nazwa
                             df_uploaded.at[index, '_Oryginalny_Adres'] = brudny_adres
                             
@@ -201,20 +207,26 @@ if baza_rspo is not None:
                                 df_uploaded.at[index, '_Kandydat_WWW'] = dopasowany_wiersz.get('Strona www', 'Brak')
                                 
                                 if pewnosc >= prog_czulosci:
+                                    # Automatyczny sukces
                                     df_uploaded.at[index, 'Status'] = "✅ Auto-Dopasowano"
                                     df_uploaded.at[index, 'Dopasowane: Numer RSPO'] = dopasowany_wiersz.get('Numer RSPO', 'Brak')
                                     df_uploaded.at[index, 'Dopasowane: Telefon'] = dopasowany_wiersz.get('Telefon', 'Brak')
                                     df_uploaded.at[index, 'Dopasowane: E-mail'] = dopasowany_wiersz.get('E-mail', 'Brak')
                                     df_uploaded.at[index, 'Dopasowane: Strona www'] = dopasowany_wiersz.get('Strona www', 'Brak')
                                 else:
+                                    # Przypadek do weryfikacji ręcznej (Tinder)
                                     df_uploaded.at[index, 'Status'] = "⚠️ Do weryfikacji"
 
                         ekran_szukania.empty()
                         my_bar.empty()
                         
+                        # ZAPISANIE WYNIKÓW DO PAMIĘCI SESJI
                         st.session_state.df_result = df_uploaded
+                        # Wyłapanie indeksów do "Tindera"
                         st.session_state.to_review_indices = df_uploaded[df_uploaded['Status'] == "⚠️ Do weryfikacji"].index.tolist()
                         st.session_state.review_index = 0
+                        
+                        # Odświeżenie interfejsu
                         st.rerun()
 
             # --- EKRAN WYNIKÓW I TINDER (Pojawia się po analizie) ---
@@ -226,6 +238,7 @@ if baza_rspo is not None:
                 manual_count = len(df_res[df_res['Status'] == '🛠️ Ręcznie dopasowano'])
                 rejected_count = len(df_res[(df_res['Status'] == '⚠️ Do weryfikacji') | (df_res['Status'] == '❌ Odrzucono') | (df_res['Status'] == 'Brak kandydata')])
                 
+                # DASHBOARD STATYSTYCZNY
                 st.markdown("### 📊 Podsumowanie wyników")
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Wszystkie wiersze", total_rows)
@@ -239,6 +252,7 @@ if baza_rspo is not None:
                 st.markdown("### 🕵️‍♂️ Tryb Weryfikacji (Tinder dla Szkół)")
                 
                 if st.session_state.review_index < len(st.session_state.to_review_indices):
+                    # Pobranie wiersza, który aktualnie oceniamy
                     current_idx = st.session_state.to_review_indices[st.session_state.review_index]
                     row_data = df_res.loc[current_idx]
                     
@@ -247,33 +261,13 @@ if baza_rspo is not None:
                     col_t1, col_t2 = st.columns(2)
                     with col_t1:
                         st.info(f"**TWOJE DANE (Z pliku)**\n\n🏫 **Nazwa:** {row_data['_Oryginalna_Nazwa']}\n\n📍 **Adres:** {row_data['_Oryginalny_Adres']}")
-                    
                     with col_t2:
                         st.success(f"**NAJLEPSZY KANDYDAT RSPO** (Pewność: {row_data['Pewność dopasowania (%)']}%)\n\n🏫 **Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n🔢 **RSPO:** {row_data['_Kandydat_RSPO']}")
                         
-                        # --- NOWOŚĆ: MAPA GOOGLE W TINDERZE ---
-                        st.markdown("**📌 Podgląd lokalizacji kandydata:**")
-                        # Szyfrujemy adres, aby był zrozumiały dla URL (zamienia spacje na %20 itd.)
-                        adres_do_mapy = urllib.parse.quote(row_data['_Kandydat_Opis'])
-                        
-                        # Zagnieżdżamy interaktywną mapkę z Google Maps używając iFrame
-                        mapa_html = f"""
-                        <iframe 
-                            width="100%" 
-                            height="200" 
-                            frameborder="0" 
-                            scrolling="no" 
-                            marginheight="0" 
-                            marginwidth="0" 
-                            src="https://maps.google.com/maps?q={adres_do_mapy}&hl=pl&z=14&amp;output=embed"
-                            style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-                        </iframe>
-                        """
-                        st.markdown(mapa_html, unsafe_allow_html=True)
-                        # ----------------------------------------
-                        
+                    # Przyciski Decyzyjne
                     c_btn1, c_btn2, c_btn3 = st.columns([1, 1, 2])
                     if c_btn1.button("✅ TAK, to jest to!", use_container_width=True):
+                        # Nadpisanie danych kandydata do głównych kolumn
                         st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
                         st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
                         st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
@@ -281,7 +275,7 @@ if baza_rspo is not None:
                         st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
                         
                         st.session_state.review_index += 1
-                        st.rerun()
+                        st.rerun() # Odświeża stronę by pokazać kolejną szkołę
                         
                     if c_btn2.button("❌ NIE, odrzuć", use_container_width=True):
                         st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
@@ -295,8 +289,11 @@ if baza_rspo is not None:
 
                 st.markdown("---")
                 
+                # --- POBIERANIE WYNIKÓW ---
+                # Czyszczenie pliku z roboczych kolumn
                 df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'])
                 
+                # Zrzucanie zaktualizowanego DataFrame do Excela
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df_do_pobrania.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
