@@ -271,7 +271,7 @@ def pokaz_ekran_ladowania():
 # MENU BOCZNE (SIDEBAR) - DRZEWKO HISTORII
 # ==========================================
 with st.sidebar:
-    st.markdown("## 🚀 Nawigacja")
+    st.markdown("##Nawigacja")
     st.divider()
     
     if st.button("🏠 Strona Główna", use_container_width=True):
@@ -457,7 +457,7 @@ elif st.session_state.page == 'rspo_tool':
 
                     st.markdown("<br>", unsafe_allow_html=True)
 
-                    if st.button("🚀 Uruchom Silnik Dopasowujący", type="primary", use_container_width=True):
+                    if st.button("Uruchom Silnik Dopasowujący", type="primary", use_container_width=True):
                         if len(kol_adres_lista) == 0:
                             st.warning("⚠️ Wybierz co najmniej jedną kolumnę w polu ADRES!")
                         else:
@@ -708,4 +708,5 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Wystąpił krytyczny problem przy przetwarzaniu Twojego pliku: {e}")
+
 
