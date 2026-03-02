@@ -3,9 +3,9 @@ import pandas as pd
 from thefuzz import process, fuzz
 import io
 import re
-import base64  # NOWOŚĆ: potrzebne do wczytania pliku GIF
+import base64
 
-# Konfiguracja strony (musi być na samej górze)
+# Konfiguracja strony
 st.set_page_config(page_title="Wzbogacanie danych z RSPO", layout="centered", page_icon="🏫")
 
 # --- Moduł Inteligentnej Normalizacji Tekstu ---
@@ -52,15 +52,12 @@ def wczytaj_baze_rspo():
         st.error(f"Wystąpił błąd przy wczytywaniu bazy: {e}")
         return None
 
-# --- NOWOŚĆ: Funkcja wyświetlająca kręcący się topór ---
+# --- Funkcja wyświetlająca kręcący się topór przy starcie ---
 def pokaz_ekran_ladowania():
-    ekran = st.empty() # Tworzymy tymczasowy kontener
+    ekran = st.empty()
     try:
-        # Wczytujemy plik GIF i zamieniamy na kod zrozumiały dla przeglądarki
         with open("axe.gif", "rb") as f:
             data_url = base64.b64encode(f.read()).decode("utf-8")
-        
-        # Wyświetlamy GIFa na środku ekranu za pomocą HTML/CSS
         with ekran.container():
             st.markdown(
                 f"""
@@ -73,20 +70,19 @@ def pokaz_ekran_ladowania():
             )
         return ekran
     except FileNotFoundError:
-        # Jeśli na GitHubie nie będzie pliku axe.gif, po prostu nic się nie pokaże (zabezpieczenie)
         return ekran
 
 # 1. POKAZUJEMY TOPÓR ZANIM ZACZNIE SIĘ ŁADOWANIE
 ekran_ladowania = pokaz_ekran_ladowania()
 
-# 2. W TYM MOMENCIE APLIKACJA "ZAMIERA" I ŁADUJE BAZĘ (TOPÓR SIĘ KRĘCI)
+# 2. ŁADUJEMY BAZĘ W TLE
 baza_rspo = wczytaj_baze_rspo()
 
-# 3. GDY BAZA SIĘ ZAŁADUJE, CZYŚCIMY EKRAN Z TOPOREM
+# 3. CZYŚCIMY EKRAN Z TOPOREM
 if ekran_ladowania:
     ekran_ladowania.empty()
 
-# --- Właściwy interfejs aplikacji (ładuje się po zniknięciu topora) ---
+# --- Właściwy interfejs aplikacji ---
 st.title("🏫 Wzbogacanie danych szkół z RSPO")
 st.write("Wgraj swój plik ze szkołami, wybierz odpowiednie kolumny i pozwól systemowi dopasować brakujące informacje.")
 
@@ -152,6 +148,25 @@ if baza_rspo is not None:
                     opisy_dict = baza_rspo['Znormalizowany_Opis'].to_dict()
                     my_bar = st.progress(0, text="Analizuję Twoje dane i dopasowuję placówki...")
                     
+                    # --- NOWOŚĆ: Kontener na GIF-a podczas wyszukiwania ---
+                    ekran_szukania = st.empty()
+                    try:
+                        with open("search.gif", "rb") as f:
+                            search_data_url = base64.b64encode(f.read()).decode("utf-8")
+                        with ekran_szukania.container():
+                            st.markdown(
+                                f"""
+                                <div style='display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: 20px;'>
+                                    <img src="data:image/gif;base64,{search_data_url}" width="100">
+                                    <p style='color: #888; font-style: italic; margin-top: 10px;'>Algorytm przeczesuje tysiące rekordów...</p>
+                                </div>
+                                """, 
+                                unsafe_allow_html=True
+                            )
+                    except FileNotFoundError:
+                        pass # Jeśli nie dodasz pliku search.gif, po prostu pokaże się sam pasek postępu
+                    # -------------------------------------------------------
+
                     wyniki_rspo, wyniki_telefon, wyniki_email, wyniki_www = [], [], [], []
                     total_rows = len(df_uploaded)
                     
@@ -186,6 +201,9 @@ if baza_rspo is not None:
                     if szukaj_telefon: df_uploaded['Dopasowane: Telefon'] = wyniki_telefon
                     if szukaj_email: df_uploaded['Dopasowane: E-mail'] = wyniki_email
                     if szukaj_www: df_uploaded['Dopasowane: Strona www'] = wyniki_www
+                    
+                    # CZYŚCIMY GIF-A WYSZUKIWANIA
+                    ekran_szukania.empty()
                     
                     st.success("🎉 Dopasowanie zakończone!")
                     
