@@ -364,7 +364,7 @@ elif st.session_state.page == 'history_view':
     )
     
     st.divider()
-    st.markdown("### 👀 Szybki Podgląd Danych")
+    st.markdown("###Szybki Podgląd Danych")
     st.dataframe(df_do_pobrania, use_container_width=True)
 
 
@@ -430,7 +430,7 @@ elif st.session_state.page == 'rspo_tool':
                             kol_adres_lista = st.multiselect("W których kolumnach masz ADRES? (możesz wybrać kilka)", kolumny)
 
                         if kol_nazwa and kol_adres_lista:
-                            st.caption("👀 Podgląd wybranych danych (pierwsze 5 wierszy):")
+                            st.caption("Podgląd wybranych danych (pierwsze 5 wierszy):")
                             kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
                             st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
                         elif kol_nazwa and not kol_adres_lista:
@@ -703,11 +703,12 @@ elif st.session_state.page == 'rspo_tool':
                         st.rerun()
 
                     st.write("")
-                    with st.expander("👀 Podgląd obecnego stanu pliku (Top 15)", expanded=False):
+                    with st.expander("Podgląd obecnego stanu pliku (Top 15)", expanded=False):
                         st.dataframe(df_do_pobrania.head(15), use_container_width=True)
 
             except Exception as e:
                 st.error(f"Wystąpił krytyczny problem przy przetwarzaniu Twojego pliku: {e}")
+
 
 
 
