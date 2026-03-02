@@ -51,11 +51,21 @@ if baza_rspo is not None:
             
             kol_nazwa = st.selectbox("W której kolumnie masz NAZWĘ szkoły? (Wybierz 1 kolumnę)", kolumny)
             
-            # ZMIANA: Zastosowanie multiselect pozwala wybrać wiele kolumn
             kol_adres_lista = st.multiselect(
                 "W których kolumnach masz ADRES? (Możesz wybrać wiele: np. miasto, kod pocztowy, ulica)", 
                 kolumny
             )
+
+            # --- NOWOŚĆ: Podgląd wybranych danych ---
+            if kol_nazwa and kol_adres_lista:
+                st.write("**Podgląd wybranych danych (pierwsze 5 wierszy):**")
+                # Tworzymy listę kolumn, które chcemy pokazać (nazwa + wszystkie wybrane części adresu)
+                kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
+                # Pokazujemy elegancką tabelkę z pierwszymi 5 wierszami
+                st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
+            elif kol_nazwa and not kol_adres_lista:
+                st.info("Wybierz przynajmniej jedną kolumnę adresową, aby zobaczyć podgląd.")
+            # ----------------------------------------
 
             st.markdown("---")
             st.subheader("Krok 2: Jakie dane chcesz dociągnąć z bazy RSPO?")
@@ -78,7 +88,6 @@ if baza_rspo is not None:
 
             st.markdown("---")
             
-            # Zabezpieczenie: przycisk działa tylko jeśli wybrano co najmniej 1 kolumnę adresową
             if len(kol_adres_lista) == 0:
                 st.warning("Wybierz co najmniej jedną kolumnę w polu ADRES, aby móc rozpocząć.")
             else:
@@ -96,7 +105,6 @@ if baza_rspo is not None:
                         
                         brudna_nazwa = str(row[kol_nazwa])
                         
-                        # ZMIANA: Sklejamy wybrane kolumny adresowe w jeden ciąg tekstowy
                         fragmenty_adresu = []
                         for col in kol_adres_lista:
                             wartosc = row[col]
@@ -127,7 +135,6 @@ if baza_rspo is not None:
                     
                     st.success("🎉 Dopasowanie zakończone!")
                     
-                    # ZMIANA: Generowanie bezpiecznego pliku Excel (.xlsx) zamiast CSV
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         df_uploaded.to_excel(writer, index=False, sheet_name='Uzupełnione Dane')
@@ -142,7 +149,7 @@ if baza_rspo is not None:
                         type="primary"
                     )
                     
-                    st.write("Podgląd pierwszych 5 wierszy:")
+                    st.write("Podgląd pierwszych 5 wierszy gotowego pliku:")
                     st.dataframe(df_uploaded.head(5))
 
         except Exception as e:
