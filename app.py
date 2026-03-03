@@ -11,39 +11,29 @@ st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", initial_s
 # Zaawansowany, profesjonalny CSS odpowiedzialny za UI/UX
 st.markdown("""
 <style>
-    /* Ukrycie zbędnych elementów Streamlit */
+    /* Ukrycie TYLKO zbędnych elementów Streamlit (zostawiamy hamburger menu) */
     #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
+    .stDeployButton {display:none;}
     footer {visibility: hidden;}
     
-    /* Globalne style dla tytułów (Animowany Gradient) */
+    /* Globalne style dla tytułów (Nowoczesne, statyczne, eleganckie) */
     .main-title {
         text-align: center;
-        font-size: 3.2rem;
+        font-size: 3rem;
         font-weight: 800;
-        letter-spacing: -1px;
-        background: linear-gradient(270deg, #1e3c72, #2a5298, #00d2ff, #3a7bd5);
-        background-size: 600% 600%;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        animation: gradientShift 12s ease infinite;
+        color: #1B263B; /* Głęboki, matowy granat */
+        letter-spacing: -0.5px;
         margin-bottom: 2rem;
         margin-top: -2rem;
+        padding-bottom: 15px;
+        border-bottom: 3px solid #415A77; /* Subtelne odcięcie */
     }
     .sub-title {
         text-align: center;
-        font-size: 2.2rem;
+        font-size: 2rem;
         font-weight: 700;
-        background: linear-gradient(270deg, #2c3e50, #3498db);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #415A77;
         margin-bottom: 1.5rem;
-    }
-
-    @keyframes gradientShift {
-        0%{background-position:0% 50%}
-        50%{background-position:100% 50%}
-        100%{background-position:0% 50%}
     }
 
     /* Ujednolicenie i efekt hover dla kontenerów (Kart) */
@@ -56,8 +46,8 @@ st.markdown("""
     }
     [data-testid="stVerticalBlockBorderWrapper"]:hover {
         transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-        border-color: rgba(58, 123, 213, 0.4);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+        border-color: #415A77;
     }
 
     /* Wymuszanie równej wysokości kolumn */
@@ -80,12 +70,12 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     }
     .user-card {
-        background-color: rgba(108, 117, 125, 0.04);
-        border-top-color: #6c757d;
+        background-color: #F8F9FA;
+        border-top-color: #6C757D;
     }
     .rspo-card {
-        background-color: rgba(58, 123, 213, 0.04);
-        border-top-color: #3a7bd5;
+        background-color: #F0F4F8;
+        border-top-color: #415A77;
     }
     .card-header {
         font-size: 1.1rem;
@@ -94,10 +84,10 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    .user-card .card-header { color: #5a6268; }
-    .rspo-card .card-header { color: #2c5494; }
+    .user-card .card-header { color: #5A6268; }
+    .rspo-card .card-header { color: #1B263B; }
     
-    .card-row { margin-bottom: 8px; font-size: 0.95rem; }
+    .card-row { margin-bottom: 8px; font-size: 0.95rem; color: #333;}
     .card-label { font-weight: 600; opacity: 0.8; }
 </style>
 """, unsafe_allow_html=True)
@@ -226,7 +216,7 @@ with st.sidebar:
 # STRONA GŁÓWNA
 if st.session_state.page == 'home':
     st.markdown("<div class='main-title'>Platforma Analityczna Szkół</div>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #666; margin-bottom: 3rem;'>Wybierz moduł analityczny i rozpocznij przetwarzanie danych z wykorzystaniem zaawansowanych algorytmów.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #555; margin-bottom: 3rem; font-size: 1.1rem;'>Wybierz moduł analityczny i rozpocznij przetwarzanie danych z wykorzystaniem zaawansowanych algorytmów.</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
