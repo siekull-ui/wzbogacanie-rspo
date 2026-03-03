@@ -6,13 +6,99 @@ import re
 from datetime import datetime
 
 # --- 1. KONFIGURACJA STRONY I INICJALIZACJA PAMIĘCI SESJI ---
-st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", page_icon="🏫", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Analiza Danych Szkół", layout="wide", initial_sidebar_state="expanded")
 
-# Minimalistyczny CSS ukrywający tylko zbędne elementy menu
+# Zaawansowany, profesjonalny CSS odpowiedzialny za UI/UX
 st.markdown("""
 <style>
+    /* Ukrycie zbędnych elementów Streamlit */
     #MainMenu {visibility: hidden;}
-    .stDeployButton {display:none;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Globalne style dla tytułów (Animowany Gradient) */
+    .main-title {
+        text-align: center;
+        font-size: 3.2rem;
+        font-weight: 800;
+        letter-spacing: -1px;
+        background: linear-gradient(270deg, #1e3c72, #2a5298, #00d2ff, #3a7bd5);
+        background-size: 600% 600%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: gradientShift 12s ease infinite;
+        margin-bottom: 2rem;
+        margin-top: -2rem;
+    }
+    .sub-title {
+        text-align: center;
+        font-size: 2.2rem;
+        font-weight: 700;
+        background: linear-gradient(270deg, #2c3e50, #3498db);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 1.5rem;
+    }
+
+    @keyframes gradientShift {
+        0%{background-position:0% 50%}
+        50%{background-position:100% 50%}
+        100%{background-position:0% 50%}
+    }
+
+    /* Ujednolicenie i efekt hover dla kontenerów (Kart) */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 12px;
+        border: 1px solid rgba(150, 150, 150, 0.2);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        background-color: transparent;
+        height: 100%;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+        border-color: rgba(58, 123, 213, 0.4);
+    }
+
+    /* Wymuszanie równej wysokości kolumn */
+    [data-testid="column"] > div {
+        height: 100%;
+    }
+
+    /* Karty 'Tinder' do recenzji */
+    .review-cards-container {
+        display: flex;
+        gap: 20px;
+        margin-top: 15px;
+        margin-bottom: 25px;
+    }
+    .review-card {
+        flex: 1;
+        padding: 20px;
+        border-radius: 12px;
+        border-top: 5px solid;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+    .user-card {
+        background-color: rgba(108, 117, 125, 0.04);
+        border-top-color: #6c757d;
+    }
+    .rspo-card {
+        background-color: rgba(58, 123, 213, 0.04);
+        border-top-color: #3a7bd5;
+    }
+    .card-header {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .user-card .card-header { color: #5a6268; }
+    .rspo-card .card-header { color: #2c5494; }
+    
+    .card-row { margin-bottom: 8px; font-size: 0.95rem; }
+    .card-label { font-weight: 600; opacity: 0.8; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -28,7 +114,7 @@ if 'raw_file_name' not in st.session_state:
 if 'last_uploaded_id' not in st.session_state:
     st.session_state.last_uploaded_id = None
 
-# --- Zmienne wyników analizy i Tindera ---
+# --- Zmienne wyników analizy ---
 if 'df_result' not in st.session_state:
     st.session_state.df_result = None
 if 'to_review_indices' not in st.session_state:
@@ -104,36 +190,34 @@ def wczytaj_baze_rspo():
         st.error(f"Wystąpił błąd przy wczytywaniu bazy: {e}")
         return None
 
-
 # ==========================================
-# MENU BOCZNE (SIDEBAR) - DRZEWKO HISTORII
+# MENU BOCZNE (SIDEBAR)
 # ==========================================
 with st.sidebar:
     st.header("Nawigacja")
     st.divider()
     
-    if st.button("🏠 Strona Główna", use_container_width=True):
+    if st.button("Strona Główna", use_container_width=True):
         st.session_state.page = 'home'
         st.rerun()
         
-    st.subheader("🕒 Ostatnie Analizy")
+    st.subheader("Ostatnie Analizy")
     
-    with st.expander("🏫 Wzbogacanie RSPO", expanded=True):
+    with st.expander("Wzbogacanie RSPO", expanded=True):
         if not st.session_state.history_rspo:
             st.caption("Brak historii. Przeprowadź pierwszą analizę.")
         else:
             for item in st.session_state.history_rspo:
-                if st.button(f"📄 {item['filename']} \n({item['time']})", key=f"hist_{item['id']}", use_container_width=True):
+                if st.button(f"{item['filename']} \n({item['time']})", key=f"hist_{item['id']}", use_container_width=True):
                     st.session_state.view_history_item = item
                     st.session_state.page = 'history_view'
                     st.rerun()
 
-    with st.expander("📊 Analiza 2 (Wkrótce)"):
+    with st.expander("Analiza Struktury (Wkrótce)"):
         st.caption("Moduł w przygotowaniu...")
 
-    with st.expander("🗺️ Analiza 3 (Wkrótce)"):
+    with st.expander("Geomapping (Wkrótce)"):
         st.caption("Moduł w przygotowaniu...")
-
 
 # ==========================================
 # GŁÓWNA NAWIGACJA (STRONY)
@@ -141,45 +225,47 @@ with st.sidebar:
 
 # STRONA GŁÓWNA
 if st.session_state.page == 'home':
-    st.title("Analizator Szkół")
-    st.markdown("Wybierz moduł analityczny i rozpocznij przetwarzanie danych.")
-    st.write("---")
+    st.markdown("<div class='main-title'>Platforma Analityczna Szkół</div>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #666; margin-bottom: 3rem;'>Wybierz moduł analityczny i rozpocznij przetwarzanie danych z wykorzystaniem zaawansowanych algorytmów.</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         with st.container(border=True):
-            st.subheader("🏫 Wzbogacanie RSPO")
-            st.write("Dopasuj dane adresowe do Bazy RSPO. Uzupełnij telefony, e-maile i WWW za pomocą algorytmu Fuzzy Logic.")
+            st.subheader("Wzbogacanie RSPO")
+            st.write("Dopasuj dane adresowe do Bazy RSPO. Uzupełnij telefony, e-maile i adresy WWW za pomocą algorytmu Fuzzy Logic.")
+            st.write("") # Spacer
             if st.button("Uruchom Moduł", key="btn1", use_container_width=True, type="primary"):
                 st.session_state.page = 'rspo_tool'
                 st.rerun()
                 
     with col2:
         with st.container(border=True):
-            st.subheader("📊 Struktura")
-            st.write("Moduł w przygotowaniu. Analiza struktury placówek, statystyki i wyciąganie wniosków.")
+            st.subheader("Struktura Organizacyjna")
+            st.write("Analiza struktury placówek, wskaźniki statystyczne i generowanie raportów w oparciu o dostarczone zbiory.")
+            st.write("") # Spacer
             st.button("Zablokowane", key="btn2", use_container_width=True, disabled=True)
             
     with col3:
         with st.container(border=True):
-            st.subheader("🗺️ Geomapping")
-            st.write("Moduł w przygotowaniu. Wizualizacja rozmieszczenia placówek na mapach przestrzennych.")
+            st.subheader("Geomapping")
+            st.write("Wizualizacja rozmieszczenia placówek na interaktywnych mapach przestrzennych wraz z analizą zasięgu.")
+            st.write("") # Spacer
             st.button("Zablokowane", key="btn3", use_container_width=True, disabled=True)
 
 
 # ==========================================
-# PODGLĄD HISTORYCZNY (HISTORIA)
+# PODGLĄD HISTORYCZNY
 # ==========================================
 elif st.session_state.page == 'history_view':
     item = st.session_state.view_history_item
     
-    if st.button("⬅ Wróć do Menu Głównego"):
+    if st.button("Wróć do Menu Głównego"):
         st.session_state.page = 'home'
         st.rerun()
         
-    st.title(f"Historia: {item['filename']}")
-    st.caption(f"Data wykonania: {item['time']}")
+    st.markdown(f"<div class='sub-title'>Historia: {item['filename']}</div>", unsafe_allow_html=True)
+    st.caption(f"Czas wygenerowania raportu: {item['time']}")
     
     df_res = item['df_ref']
     df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'], errors='ignore')
@@ -190,7 +276,7 @@ elif st.session_state.page == 'history_view':
     gotowy_excel = output.getvalue()
     
     st.download_button(
-        label="📥 Pobierz Plik Ponownie (.xlsx)",
+        label="Pobierz Plik Ponownie (.xlsx)",
         data=gotowy_excel,
         file_name=item['filename'],
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -207,21 +293,21 @@ elif st.session_state.page == 'history_view':
 # ==========================================
 elif st.session_state.page == 'rspo_tool':
     
-    if st.button("⬅ Wróć do Menu Głównego"):
+    if st.button("Wróć do Menu Głównego"):
         st.session_state.page = 'home'
         st.rerun()
         
-    st.title("Ekstrakcja i Wzbogacanie Danych RSPO")
+    st.markdown("<div class='sub-title'>Ekstrakcja i Wzbogacanie Danych RSPO</div>", unsafe_allow_html=True)
     st.write("---")
 
-    with st.spinner("Ładowanie silnika dopasowującego oraz bazy RSPO..."):
+    with st.spinner("Inicjalizacja środowiska i ładowanie Bazy RSPO..."):
         baza_rspo = wczytaj_baze_rspo()
 
     if baza_rspo is not None:
-        st.success(f"Baza wczytana pomyślnie ({len(baza_rspo):,} placówek).")
+        st.success(f"System gotowy. Pomyślnie wczytano {len(baza_rspo):,} rekordów placówek.")
         
         # Okno wgrywania plików
-        uploaded_file = st.file_uploader("Wgraj swój plik do uzupełnienia (Excel/CSV)", type=["csv", "xlsx"])
+        uploaded_file = st.file_uploader("Prześlij plik z danymi do wzbogacenia (Excel / CSV)", type=["csv", "xlsx"])
 
         # Logika zachowania pliku w pamięci
         if uploaded_file is not None:
@@ -237,7 +323,7 @@ elif st.session_state.page == 'rspo_tool':
                     else:
                         st.session_state.raw_df = pd.read_excel(uploaded_file)
                 except Exception as e:
-                    st.error(f"Błąd podczas wczytywania pliku: {e}")
+                    st.error(f"Wystąpił błąd krytyczny podczas parsowania pliku: {e}")
                     st.session_state.raw_df = None
 
         # --- GŁÓWNA LOGIKA NARZĘDZIA ---
@@ -251,47 +337,47 @@ elif st.session_state.page == 'rspo_tool':
                     
                     # KROK 1
                     with st.container(border=True):
-                        st.subheader("Krok 1: Mapowanie Zmiennych")
+                        st.subheader("Etap 1: Mapowanie Atrybutów")
                         col_a1, col_a2 = st.columns(2)
                         with col_a1:
-                            kol_nazwa = st.selectbox("Kolumna z NAZWĄ szkoły:", kolumny)
+                            kol_nazwa = st.selectbox("Wskaż kolumnę zawierającą NAZWĘ placówki:", kolumny)
                         with col_a2:
-                            kol_adres_lista = st.multiselect("Kolumny z ADRESEM (możesz wybrać kilka):", kolumny)
+                            kol_adres_lista = st.multiselect("Wskaż kolumny definiujące ADRES:", kolumny)
 
                         if kol_nazwa and kol_adres_lista:
-                            st.caption("Podgląd wybranych danych (pierwsze 5 wierszy):")
+                            st.caption("Podgląd wyselekcjonowanej struktury (próbka 5 rekordów):")
                             kolumny_do_podgladu = [kol_nazwa] + kol_adres_lista
                             st.dataframe(df_uploaded[kolumny_do_podgladu].head(5), use_container_width=True)
 
                     # KROK 2
                     with st.container(border=True):
-                        st.subheader("Krok 2: Opcje dociągania danych")
-                        szukaj_wszystko = st.checkbox("Dociągnij automatycznie wszystkie dane (Numer, Telefon, E-mail, WWW)", value=True)
+                        st.subheader("Etap 2: Parametry Wzbogacania")
+                        szukaj_wszystko = st.checkbox("Automatyczna ekstrakcja wszystkich dostępnych atrybutów (RSPO, Telefon, E-mail, WWW)", value=True)
                         
                         szukaj_rspo, szukaj_telefon, szukaj_email, szukaj_www = True, True, True, True
                         if not szukaj_wszystko:
                             cc1, cc2, cc3, cc4 = st.columns(4)
-                            with cc1: szukaj_rspo = st.checkbox("Numer RSPO", value=True)
-                            with cc2: szukaj_telefon = st.checkbox("Telefon")
-                            with cc3: szukaj_email = st.checkbox("E-mail")
-                            with cc4: szukaj_www = st.checkbox("Strona www")
+                            with cc1: szukaj_rspo = st.checkbox("Identyfikator RSPO", value=True)
+                            with cc2: szukaj_telefon = st.checkbox("Numer telefonu")
+                            with cc3: szukaj_email = st.checkbox("Adres e-mail")
+                            with cc4: szukaj_www = st.checkbox("Witryna internetowa")
 
                     # KROK 3
                     with st.container(border=True):
-                        st.subheader("Krok 3: Czułość algorytmu")
-                        st.write("Rekordy poniżej progu tolerancji trafią do ręcznej weryfikacji.")
-                        prog_czulosci = st.slider("Próg pewności dopasowania (%)", min_value=50, max_value=100, value=80, step=1)
+                        st.subheader("Etap 3: Kalibracja Algorytmu")
+                        st.write("Wybierz próg pewności dopasowania. Rekordy poniżej wskazanej wartości zostaną skierowane do weryfikacji manualnej.")
+                        prog_czulosci = st.slider("Minimalny próg akceptacji dopasowania (%)", min_value=50, max_value=100, value=80, step=1)
 
                     st.write("")
 
-                    if st.button("Uruchom Analizę", type="primary"):
+                    if st.button("Inicjuj Przetwarzanie", type="primary"):
                         if len(kol_adres_lista) == 0:
-                            st.warning("Wybierz co najmniej jedną kolumnę w polu ADRES.")
+                            st.warning("Należy przypisać co najmniej jedną kolumnę w sekcji definiującej ADRES.")
                         else:
                             opisy_dict = baza_rspo['Znormalizowany_Opis'].to_dict()
-                            my_bar = st.progress(0, text="Analiza układu danych...")
+                            my_bar = st.progress(0, text="Skanowanie przestrzeni roboczej...")
                             
-                            df_uploaded['Dopasowane: Numer RSPO'] = "Nie znaleziono"
+                            df_uploaded['Dopasowane: Numer RSPO'] = "Brak kandydata"
                             df_uploaded['Dopasowane: Telefon'] = "-"
                             df_uploaded['Dopasowane: E-mail'] = "-"
                             df_uploaded['Dopasowane: Strona www'] = "-"
@@ -308,10 +394,10 @@ elif st.session_state.page == 'rspo_tool':
                             
                             total_rows = len(df_uploaded)
                             
-                            with st.spinner("Przeszukiwanie bazy i dopasowywanie rekordów..."):
+                            with st.spinner("Przetwarzanie rozmyte i optymalizacja macierzy..."):
                                 for index, row in df_uploaded.iterrows():
                                     if index % 5 == 0 or index == total_rows - 1:
-                                        my_bar.progress((index + 1) / total_rows, text=f"Przetwarzanie: {index+1} / {total_rows} rekordów")
+                                        my_bar.progress((index + 1) / total_rows, text=f"Analiza: rekord {index+1} / {total_rows}")
                                     
                                     brudna_nazwa = str(row[kol_nazwa])
                                     fragmenty_adresu = [str(row[col]).strip() for col in kol_adres_lista if pd.notna(row[col]) and str(row[col]).strip() != ""]
@@ -338,18 +424,18 @@ elif st.session_state.page == 'rspo_tool':
                                         df_uploaded.at[index, '_Kandydat_WWW'] = dopasowany_wiersz.get('Strona www', 'Brak')
                                         
                                         if pewnosc >= prog_czulosci:
-                                            df_uploaded.at[index, 'Status'] = "✅ Auto-Dopasowano"
+                                            df_uploaded.at[index, 'Status'] = "Auto-Dopasowano"
                                             df_uploaded.at[index, 'Dopasowane: Numer RSPO'] = dopasowany_wiersz.get('Numer RSPO', 'Brak')
                                             df_uploaded.at[index, 'Dopasowane: Telefon'] = dopasowany_wiersz.get('Telefon', 'Brak')
                                             df_uploaded.at[index, 'Dopasowane: E-mail'] = dopasowany_wiersz.get('E-mail', 'Brak')
                                             df_uploaded.at[index, 'Dopasowane: Strona www'] = dopasowany_wiersz.get('Strona www', 'Brak')
                                         else:
-                                            df_uploaded.at[index, 'Status'] = "⚠️ Do weryfikacji"
+                                            df_uploaded.at[index, 'Status'] = "Do weryfikacji"
 
                             my_bar.empty()
                             
                             st.session_state.df_result = df_uploaded
-                            st.session_state.to_review_indices = df_uploaded[df_uploaded['Status'] == "⚠️ Do weryfikacji"].index.tolist()
+                            st.session_state.to_review_indices = df_uploaded[df_uploaded['Status'] == "Do weryfikacji"].index.tolist()
                             st.session_state.review_index = 0
                             
                             # --- ZAPIS DO HISTORII ---
@@ -373,86 +459,91 @@ elif st.session_state.page == 'rspo_tool':
                     
                     df_res = st.session_state.df_result
                     total_rows = len(df_res)
-                    auto_count = len(df_res[df_res['Status'] == '✅ Auto-Dopasowano'])
-                    manual_count = len(df_res[df_res['Status'] == '🛠️ Ręcznie dopasowano'])
-                    rejected_count = len(df_res[(df_res['Status'] == '⚠️ Do weryfikacji') | (df_res['Status'] == '❌ Odrzucono') | (df_res['Status'] == 'Brak kandydata')])
+                    auto_count = len(df_res[df_res['Status'] == 'Auto-Dopasowano'])
+                    manual_count = len(df_res[df_res['Status'] == 'Ręcznie dopasowano'])
+                    rejected_count = len(df_res[(df_res['Status'] == 'Do weryfikacji') | (df_res['Status'] == 'Odrzucono') | (df_res['Status'] == 'Brak kandydata')])
                     
-                    st.subheader("Dashboard Wyników")
+                    st.subheader("Konsola Wyników")
                     with st.container(border=True):
                         c1, c2, c3, c4 = st.columns(4)
-                        c1.metric("Wszystkie wiersze", total_rows)
-                        c2.metric("Dopasowano", auto_count + manual_count, f"{round(((auto_count+manual_count)/total_rows)*100, 1)}%")
-                        c3.metric("Do weryfikacji", len(st.session_state.to_review_indices) - st.session_state.review_index)
-                        c4.metric("Brak / Odrzucono", rejected_count)
+                        c1.metric("Łączna liczba rekordów", total_rows)
+                        c2.metric("Skuteczność przypisań", auto_count + manual_count, f"{round(((auto_count+manual_count)/total_rows)*100, 1)}%")
+                        c3.metric("Oczekujące weryfikacje", len(st.session_state.to_review_indices) - st.session_state.review_index)
+                        c4.metric("Rekordy odrzucone", rejected_count)
                     
                     st.divider()
                     
-                    # --- TRYB RĘCZNEJ WERYFIKACJI ---
-                    st.subheader("Tryb Ręcznej Weryfikacji")
+                    # --- TRYB RĘCZNEJ WERYFIKACJI (TINDER KARTY) ---
+                    st.subheader("Panel Rozstrzygania Niejednoznaczności")
                     
                     if st.session_state.review_index < len(st.session_state.to_review_indices):
                         current_idx = st.session_state.to_review_indices[st.session_state.review_index]
                         row_data = df_res.loc[current_idx]
                         
-                        st.info(f"Rekord **{st.session_state.review_index + 1}** z **{len(st.session_state.to_review_indices)}** wymaga weryfikacji:")
+                        st.info(f"Analiza rekordu **{st.session_state.review_index + 1}** z **{len(st.session_state.to_review_indices)}** (Pewność dopasowania algorytmu: {row_data['Pewność dopasowania (%)']}%)")
                         
-                        with st.container(border=True):
-                            col_t1, col_t2 = st.columns(2)
-                            with col_t1:
-                                st.markdown("#### Twoje dane z pliku")
-                                st.write(f"**Nazwa:** {row_data['_Oryginalna_Nazwa']}")
-                                st.write(f"**Adres:** {row_data['_Oryginalny_Adres']}")
-                            with col_t2:
-                                st.markdown(f"#### Kandydat RSPO (Pewność: {row_data['Pewność dopasowania (%)']}%)")
-                                st.write(f"**Opis:** {row_data['_Kandydat_Opis']}")
-                                st.write(f"**RSPO:** {row_data['_Kandydat_RSPO']}")
-                                
-                            st.write("---") 
-                            
-                            c_btn1, c_btn_undo, c_btn2 = st.columns([2, 1, 2])
-                            
-                            with c_btn_undo:
-                                if st.session_state.review_index > 0:
-                                    if st.button("Cofnij", use_container_width=True):
-                                        st.session_state.review_index -= 1
-                                        idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
-                                        st.session_state.df_result.at[idx_to_revert, 'Status'] = "⚠️ Do weryfikacji"
-                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Nie znaleziono"
-                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
-                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
-                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
-                                        st.rerun()
-                                        
-                            with c_btn1:
-                                if st.button("Akceptuj", use_container_width=True, type="primary"):
-                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
-                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
-                                    st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
-                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
-                                    st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
-                                    st.session_state.review_index += 1
+                        # Tworzenie Kart przy użyciu HTML/CSS
+                        html_cards = f"""
+                        <div class="review-cards-container">
+                            <div class="review-card user-card">
+                                <div class="card-header">Dane z pliku wejściowego</div>
+                                <div class="card-row"><span class="card-label">Nazwa:</span> {row_data['_Oryginalna_Nazwa']}</div>
+                                <div class="card-row"><span class="card-label">Oryginalny Adres:</span> {row_data['_Oryginalny_Adres']}</div>
+                            </div>
+                            <div class="review-card rspo-card">
+                                <div class="card-header">Kandydat z Bazy RSPO</div>
+                                <div class="card-row"><span class="card-label">Znormalizowany Opis:</span> {row_data['_Kandydat_Opis']}</div>
+                                <div class="card-row"><span class="card-label">Numer RSPO:</span> {row_data['_Kandydat_RSPO']}</div>
+                            </div>
+                        </div>
+                        """
+                        st.markdown(html_cards, unsafe_allow_html=True)
+                        
+                        # Przyciski sterujące pod kartami
+                        c_btn1, c_btn_undo, c_btn2 = st.columns([2, 1, 2])
+                        
+                        with c_btn_undo:
+                            if st.session_state.review_index > 0:
+                                if st.button("Cofnij akcję", use_container_width=True):
+                                    st.session_state.review_index -= 1
+                                    idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
+                                    st.session_state.df_result.at[idx_to_revert, 'Status'] = "Do weryfikacji"
+                                    st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Brak kandydata"
+                                    st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
+                                    st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
+                                    st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
                                     st.rerun()
                                     
-                            with c_btn2:
-                                if st.button("Odrzuć", use_container_width=True):
-                                    st.session_state.df_result.at[current_idx, 'Status'] = "❌ Odrzucono"
-                                    st.session_state.review_index += 1
-                                    st.rerun()
+                        with c_btn1:
+                            if st.button("Zatwierdź Powiązanie", use_container_width=True, type="primary"):
+                                st.session_state.df_result.at[current_idx, 'Dopasowane: Numer RSPO'] = row_data['_Kandydat_RSPO']
+                                st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
+                                st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
+                                st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
+                                st.session_state.df_result.at[current_idx, 'Status'] = "Ręcznie dopasowano"
+                                st.session_state.review_index += 1
+                                st.rerun()
+                                
+                        with c_btn2:
+                            if st.button("Odrzuć Kandydata", use_container_width=True):
+                                st.session_state.df_result.at[current_idx, 'Status'] = "Odrzucono"
+                                st.session_state.review_index += 1
+                                st.rerun()
                         
                     else:
                         if len(st.session_state.to_review_indices) > 0:
-                            st.success("Weryfikacja zakończona. Plik jest gotowy do pobrania.")
-                            if st.button("Cofnij ostatnią decyzję"):
+                            st.success("Proces weryfikacji manualnej został pomyślnie zakończony.")
+                            if st.button("Cofnij ostatnią akcję rozstrzygającą"):
                                 st.session_state.review_index -= 1
                                 idx_to_revert = st.session_state.to_review_indices[st.session_state.review_index]
-                                st.session_state.df_result.at[idx_to_revert, 'Status'] = "⚠️ Do weryfikacji"
-                                st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Nie znaleziono"
+                                st.session_state.df_result.at[idx_to_revert, 'Status'] = "Do weryfikacji"
+                                st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Numer RSPO'] = "Brak kandydata"
                                 st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
                                 st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
                                 st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
                                 st.rerun()
                         else:
-                            st.success("Brak szkół granicznych do weryfikacji. Proces zakończony automatycznie.")
+                            st.success("Nie wykryto rekordów wymagających ręcznej interwencji. Proces zakończony w trybie automatycznym.")
 
                     st.divider()
                     
@@ -464,14 +555,14 @@ elif st.session_state.page == 'rspo_tool':
                     gotowy_excel = output.getvalue()
                     
                     # --- POBIERANIE WYNIKÓW ---
-                    st.subheader("Pobieranie Wyników")
+                    st.subheader("Eksport Danych Wyjściowych")
                     
                     aktualna_nazwa_z_historii = st.session_state.history_rspo[0]['filename'] if len(st.session_state.history_rspo) > 0 else "Rozszerzone_dane.xlsx"
                     
                     col_input, col_btn = st.columns([3, 1])
                     with col_input:
                         nazwa_uzytkownika = st.text_input(
-                            "Zmień nazwę pliku przed pobraniem:", 
+                            "Zdefiniuj nazwę pliku docelowego:", 
                             value=aktualna_nazwa_z_historii, 
                             key="user_filename_input",
                             on_change=aktualizuj_nazwe_w_historii
@@ -483,7 +574,7 @@ elif st.session_state.page == 'rspo_tool':
                         nazwa_pliku = nazwa_uzytkownika
                     
                     st.download_button(
-                        label="Pobierz Plik (.xlsx)",
+                        label="Pobierz Zestawienie (.xlsx)",
                         data=gotowy_excel,
                         file_name=nazwa_pliku,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -491,13 +582,13 @@ elif st.session_state.page == 'rspo_tool':
                     )
                     
                     st.write("")
-                    if st.button("Zakończ sesję i wgraj nowy plik"):
+                    if st.button("Zamknij sesję i prześlij nowy zbiór danych"):
                         pelny_reset()
                         st.rerun()
 
                     st.write("")
-                    with st.expander("Podgląd obecnego stanu pliku (Top 15)", expanded=False):
+                    with st.expander("Inspekcja struktury wyjściowej (podgląd 15 pierwszych wierszy)", expanded=False):
                         st.dataframe(df_do_pobrania.head(15), use_container_width=True)
 
             except Exception as e:
-                st.error(f"Wystąpił problem przy przetwarzaniu pliku: {e}")
+                st.error(f"Zdiagnozowano błąd podczas manipulacji ramką danych: {e}")
