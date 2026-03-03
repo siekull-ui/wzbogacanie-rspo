@@ -1,133 +1,78 @@
 import streamlit as st
 
-# Konfiguracja strony musi być pierwszym poleceniem
-st.set_page_config(page_title="Minimalistyczne Analizatory", layout="wide", initial_sidebar_state="collapsed")
+# Konfiguracja - domyślnie zwinięty sidebar
+st.set_page_config(page_title="Neumorficzna Aplikacja", layout="wide", initial_sidebar_state="collapsed")
 
-# Wstrzykiwanie niestandardowego CSS
+# Inicjalizacja stanu sesji do zarządzania "stronami"
+if 'aktualna_strona' not in st.session_state:
+    st.session_state.aktualna_strona = 'Strona Główna'
+
+# --- GŁÓWNY CSS (Neumorfizm, Glassmorfizm i ukrywanie domyślnych elementów) ---
 st.markdown("""
 <style>
-    /* Ukrycie domyślnych elementów Streamlita dla czystości */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Główne tło - neumorfizm wymaga specyficznego, lekko szarego tła */
+    /* Tło pod neumorfizm */
     .stApp {
         background-color: #e0e5ec;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
+    
+    /* Ukrycie domyślnego nagłówka Streamlita */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
 
-    /* NIERUCHOMY NAGŁÓWEK */
-    .fixed-header {
-        position: fixed;
-        top: 0;
-        left: 0;
+    /* STYLOWANIE NATYWNYCH PRZYCISKÓW STREAMLITA NA NEUMORFIZM */
+    div.stButton > button {
+        background-color: #e0e5ec !important;
+        color: #555 !important;
+        border: none !important;
+        border-radius: 12px !important;
+        box-shadow: 6px 6px 12px #b8bcc2, -6px -6px 12px #ffffff !important;
+        transition: all 0.2s ease !important;
         width: 100%;
-        background-color: #e0e5ec;
-        padding: 15px 30px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        z-index: 9999;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        height: 50px;
+        font-weight: 600 !important;
+        letter-spacing: 1px;
     }
     
-    .header-logo {
-        font-size: 1.2rem;
-        font-weight: bold;
-        color: #333;
-    }
-    
-    .nav-buttons {
-        display: flex;
-        gap: 15px;
+    /* Efekt wklęśnięcia przy kliknięciu/aktywności */
+    div.stButton > button:active, div.stButton > button:focus {
+        box-shadow: inset 6px 6px 12px #b8bcc2, inset -6px -6px 12px #ffffff !important;
+        color: #0078D4 !important;
     }
 
-    /* NEUMORFICZNE PRZYCISKI (efekt wklęśnięcia) */
-    .nav-btn {
-        padding: 10px 20px;
-        border-radius: 8px;
+    /* NEUMORFICZNY PANEL GŁÓWNY (Wypukłość z tła) */
+    .neumorphic-panel {
         background: #e0e5ec;
-        color: #333;
-        text-decoration: none;
-        font-weight: 600;
-        /* Wypukły cień */
-        box-shadow: 5px 5px 10px #b8bcc2, -5px -5px 10px #ffffff;
-        transition: all 0.2s ease;
-        cursor: pointer;
-        border: none;
-    }
-    
-    .nav-btn:active {
-        /* Wklęsły cień przy kliknięciu */
-        box-shadow: inset 5px 5px 10px #b8bcc2, inset -5px -5px 10px #ffffff;
-        color: #0078D4;
-    }
-
-    /* ODCINANIE OD GÓRY (żeby header nie zasłaniał treści) */
-    .content-spacer {
-        margin-top: 80px; 
-    }
-
-    /* TYTUŁ STRONY - DWA KWADRATY */
-    .title-area {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin: 40px auto;
-        width: 100%;
-        max-width: 800px;
-    }
-    
-    .square {
-        width: 300px;
-        height: 300px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: white;
-        font-size: 2rem;
-        font-weight: bold;
+        border-radius: 30px;
+        box-shadow: 15px 15px 30px #b8bcc2, -15px -15px 30px #ffffff;
+        padding: 60px;
         text-align: center;
-        transition: transform 0.3s;
+        margin: 20px auto 60px auto;
+        max-width: 800px;
+        color: #444;
     }
     
-    .square:hover {
-        transform: scale(1.02);
+    .neumorphic-panel h1 {
+        font-weight: 300;
+        letter-spacing: 3px;
+        margin-bottom: 10px;
     }
 
-    .square-left {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); /* Głęboki niebieski */
-        border-radius: 20px 0 0 20px;
-        box-shadow: -10px 10px 20px rgba(0,0,0,0.15);
-    }
-
-    .square-right {
-        background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%); /* Ciepły róż/czerwień */
-        border-radius: 0 20px 20px 0;
-        box-shadow: 10px 10px 20px rgba(0,0,0,0.15);
-        /* Ciekawy efekt nałożenia */
-        margin-left: -10px; 
-        mix-blend-mode: multiply;
-    }
-
-    /* OBSZAR ANALIZATORÓW - GLASSMORFIZM + SZUM */
+    /* OBSZAR ANALIZATORÓW - GLASSMORFIZM (z poprzedniej wersji) */
     .glass-grid {
         display: flex;
         justify-content: space-between;
         gap: 20px;
-        margin-top: 60px;
         padding: 20px;
     }
 
     .glass-card {
         flex: 1;
-        height: 250px;
+        height: 220px;
         border-radius: 15px;
         padding: 20px;
         position: relative;
         overflow: hidden;
-        /* Efekt szronu / prześwitu */
         background: rgba(255, 255, 255, 0.25);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
@@ -136,59 +81,88 @@ st.markdown("""
         color: #222;
     }
 
-    /* Ziarnistość (Noise) dodawana jako pseudoelement */
     .glass-card::before {
         content: "";
         position: absolute;
         top: 0; left: 0; width: 100%; height: 100%;
         opacity: 0.15;
         background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
-        pointer-events: none; /* Żeby nie blokowało klikania w tekst */
+        pointer-events: none;
         z-index: -1;
-    }
-    
-    .glass-card h3 {
-        margin-top: 0;
-        color: #111;
-        border-bottom: 1px solid rgba(0,0,0,0.1);
-        padding-bottom: 10px;
     }
 
 </style>
-
-<div class="fixed-header">
-    <div class="header-logo">STRONA GŁÓWNA</div>
-    <div class="nav-buttons">
-        <button class="nav-btn">Analizator 1</button>
-        <button class="nav-btn">Analizator 2</button>
-        <button class="nav-btn">Analizator 3</button>
-    </div>
-</div>
-
-<div class="content-spacer"></div>
-
-<div class="title-area">
-    <div class="square square-left">GŁÓWNY</div>
-    <div class="square square-right">PANEL</div>
-</div>
-
-<div style="text-align: center; margin-top: 50px;">
-    <h2 style="color: #444; font-weight: 300; letter-spacing: 2px;">WYBIERZ MODUŁ</h2>
-    <hr style="width: 50px; border: 1px solid #888; margin: 10px auto;">
-</div>
-
-<div class="glass-grid">
-    <div class="glass-card">
-        <h3>Analizator 1</h3>
-        <p>Tutaj znajdzie się opis pierwszego modułu. Dzięki efektowi szklanej powłoki tło za nim staje się rozmyte, a ziarno dodaje tekstury.</p>
-    </div>
-    <div class="glass-card">
-        <h3>Analizator 2</h3>
-        <p>Miejsce na wgranie danych wejściowych, np. plików CSV lub obrazów medycznych, by wyciągnąć szybkie statystyki.</p>
-    </div>
-    <div class="glass-card">
-        <h3>Analizator 3</h3>
-        <p>Zaawansowane wykresy i podsumowania. Minimalizm sprawia, że interfejs nie odciąga uwagi od najważniejszego - danych.</p>
-    </div>
-</div>
 """, unsafe_allow_html=True)
+
+
+# --- GÓRNY PASEK NAWIGACJI (Ostylowane przyciski) ---
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    if st.button("STRONA GŁÓWNA"):
+        st.session_state.aktualna_strona = 'Strona Główna'
+with col2:
+    if st.button("ANALIZATOR 1"):
+        st.session_state.aktualna_strona = 'Analizator 1'
+with col3:
+    if st.button("ANALIZATOR 2"):
+        st.session_state.aktualna_strona = 'Analizator 2'
+with col4:
+    if st.button("ANALIZATOR 3"):
+        st.session_state.aktualna_strona = 'Analizator 3'
+
+st.markdown("<br><br>", unsafe_allow_html=True)
+
+
+# --- LOGIKA WYŚWIETLANIA STRON ---
+
+if st.session_state.aktualna_strona == 'Strona Główna':
+    # WIDOK STRONY GŁÓWNEJ
+    
+    st.markdown("""
+    <div class="neumorphic-panel">
+        <h1>GŁÓWNY PANEL</h1>
+        <p>Płynne uwypuklenie z tła. Brak ostrych krawędzi, gra światła i cienia.</p>
+    </div>
+    
+    <div style="text-align: center; margin-top: 40px; margin-bottom: 20px;">
+        <h3 style="color: #666; font-weight: 300; letter-spacing: 2px;">PRZEGLĄD MODUŁÓW</h3>
+    </div>
+    
+    <div class="glass-grid">
+        <div class="glass-card">
+            <h4 style="border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 10px;">Analizator 1</h4>
+            <p>Zaszronione szkło z efektem ziarna.</p>
+        </div>
+        <div class="glass-card">
+            <h4 style="border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 10px;">Analizator 2</h4>
+            <p>Idealne miejsce na zajawkę tego, co potrafi moduł.</p>
+        </div>
+        <div class="glass-card">
+            <h4 style="border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 10px;">Analizator 3</h4>
+            <p>Prześwitujący kontener unoszący się nad interfejsem.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+else:
+    # WIDOK KONKRETNEGO ANALIZATORA (1, 2 lub 3)
+    
+    nazwa_analizatora = st.session_state.aktualna_strona
+    
+    # Wyświetlenie treści na głównej przestrzeni
+    st.markdown(f"<h2 style='color: #444;'>Jesteś w: {nazwa_analizatora}</h2>", unsafe_allow_html=True)
+    st.write("Tutaj znajdzie się cała logika przetwarzania, wgrywanie plików, wykresy itd.")
+    
+    # Uruchomienie wysuwanego paska bocznego (Sidebar) TYLKO dla analizatorów
+    with st.sidebar:
+        st.markdown(f"<h3 style='color: #444;'>Historia - {nazwa_analizatora}</h3>", unsafe_allow_html=True)
+        st.write("Ostatnie akcje:")
+        
+        # Przykładowa historia (można to później podpiąć pod bazę/stan sesji)
+        st.info("🕒 10:42 - Wgrano plik data.csv")
+        st.info("🕒 10:45 - Wygenerowano wykres rozrzutu")
+        st.info("🕒 10:50 - Zapisano raport do PDF")
+        
+        st.markdown("---")
+        st.write("*Ta zakładka widoczna jest tylko podczas pracy z analizatorem.*")
