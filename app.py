@@ -166,7 +166,7 @@ def normalizuj_tekst(tekst):
 @st.cache_data
 def wczytaj_baze_rspo():
     try:
-        df_rspo = pd.read_csv("baza_rspo.csv", sep=None, engine='python', encoding='utf-8')
+        df_rspo = pd.read_csv("baza_rspo.csv", sep=None, engine='python', encoding='utf-8', dtype={'Numer RSPO': str, 'Telefon': str})
         nazwa = df_rspo['Nazwa'].fillna('')
         miejscowosc = df_rspo['Miejscowość'].fillna('')
         ulica = df_rspo['Ulica'].fillna('')
@@ -408,17 +408,17 @@ elif st.session_state.page == 'rspo_tool':
                                         
                                         df_uploaded.at[index, 'Pewność dopasowania (%)'] = pewnosc
                                         df_uploaded.at[index, '_Kandydat_Opis'] = dopasowany_wiersz['Pelny_Opis']
-                                        df_uploaded.at[index, '_Kandydat_RSPO'] = dopasowany_wiersz.get('Numer RSPO', 'Brak')
-                                        df_uploaded.at[index, '_Kandydat_Telefon'] = dopasowany_wiersz.get('Telefon', 'Brak')
-                                        df_uploaded.at[index, '_Kandydat_Email'] = dopasowany_wiersz.get('E-mail', 'Brak')
-                                        df_uploaded.at[index, '_Kandydat_WWW'] = dopasowany_wiersz.get('Strona www', 'Brak')
+                                        df_uploaded.at[index, '_Kandydat_RSPO'] = str(dopasowany_wiersz.get('Numer RSPO', 'Brak'))
+                                        df_uploaded.at[index, '_Kandydat_Telefon'] = str(dopasowany_wiersz.get('Telefon', 'Brak'))
+                                        df_uploaded.at[index, '_Kandydat_Email'] = str(dopasowany_wiersz.get('E-mail', 'Brak'))
+                                        df_uploaded.at[index, '_Kandydat_WWW'] = str(dopasowany_wiersz.get('Strona www', 'Brak'))
                                         
                                         if pewnosc >= prog_czulosci:
                                             df_uploaded.at[index, 'Status'] = "Auto-Dopasowano"
-                                            df_uploaded.at[index, 'Dopasowane: Numer RSPO'] = dopasowany_wiersz.get('Numer RSPO', 'Brak')
-                                            df_uploaded.at[index, 'Dopasowane: Telefon'] = dopasowany_wiersz.get('Telefon', 'Brak')
-                                            df_uploaded.at[index, 'Dopasowane: E-mail'] = dopasowany_wiersz.get('E-mail', 'Brak')
-                                            df_uploaded.at[index, 'Dopasowane: Strona www'] = dopasowany_wiersz.get('Strona www', 'Brak')
+                                            df_uploaded.at[index, 'Dopasowane: Numer RSPO'] = str(dopasowany_wiersz.get('Numer RSPO', 'Brak'))
+                                            df_uploaded.at[index, 'Dopasowane: Telefon'] = str(dopasowany_wiersz.get('Telefon', 'Brak'))
+                                            df_uploaded.at[index, 'Dopasowane: E-mail'] = str(dopasowany_wiersz.get('E-mail', 'Brak'))
+                                            df_uploaded.at[index, 'Dopasowane: Strona www'] = str(dopasowany_wiersz.get('Strona www', 'Brak'))
                                         else:
                                             df_uploaded.at[index, 'Status'] = "Do weryfikacji"
 
@@ -582,4 +582,3 @@ elif st.session_state.page == 'rspo_tool':
 
             except Exception as e:
                 st.error(f"Zdiagnozowano błąd podczas manipulacji ramką danych: {e}")
-
