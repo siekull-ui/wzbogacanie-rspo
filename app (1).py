@@ -1,3 +1,10 @@
+Jasne, gotowe. Zmodyfikowałem Twój kod tak, aby algorytm dociągał również informacje o dyrektorze oraz liczbie uczniów, uwzględnił te dane w "Tinderze" (trybie weryfikacji) oraz dodał je do finalnego pliku Excel.
+
+**Ważna uwaga:** Kod zakłada, że w Twoim pliku `baza_rspo.csv` kolumny te nazywają się dokładnie **`Dyrektor`** oraz **`Liczba uczniów`**. Jeśli u Ciebie nazywają się inaczej (np. "Dyrektor placówki", "Uczniowie"), musisz podmienić te nazwy w liniach zawierających `dopasowany_wiersz.get(...)`.
+
+Oto kompletny, zaktualizowany kod:
+
+```python
 import streamlit as st
 import pandas as pd
 from thefuzz import process, fuzz
@@ -271,7 +278,7 @@ def pokaz_ekran_ladowania():
 # MENU BOCZNE (SIDEBAR) - DRZEWKO HISTORII
 # ==========================================
 with st.sidebar:
-    st.markdown("##Nawigacja")
+    st.markdown("## Nawigacja")
     st.divider()
     
     if st.button("🏠 Strona Główna", use_container_width=True):
@@ -347,7 +354,12 @@ elif st.session_state.page == 'history_view':
     
     df_res = item['df_ref']
     
-    df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'], errors='ignore')
+    # Rozszerzona lista kolumn technicznych do usunięcia przy pobieraniu
+    kolumny_do_usuniecia = [
+        '_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', 
+        '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Dyrektor', '_Kandydat_Uczniowie', '_Kandydat_Opis'
+    ]
+    df_do_pobrania = df_res.drop(columns=kolumny_do_usuniecia, errors='ignore')
     
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -364,7 +376,7 @@ elif st.session_state.page == 'history_view':
     )
     
     st.divider()
-    st.markdown("###Szybki Podgląd Danych")
+    st.markdown("### Szybki Podgląd Danych")
     st.dataframe(df_do_pobrania, use_container_width=True)
 
 
@@ -439,15 +451,20 @@ elif st.session_state.page == 'rspo_tool':
                     # KROK 2
                     with st.container(border=True):
                         st.markdown('<div class="step-header step-2">🎯 Krok 2: Opcje dociągania danych</div>', unsafe_allow_html=True)
-                        szukaj_wszystko = st.checkbox("Dociągnij automatycznie wszystkie dane z RSPO (Numer, Telefon, E-mail, WWW)", value=True)
+                        szukaj_wszystko = st.checkbox("Dociągnij automatycznie wszystkie dane z RSPO (Numer, Telefon, E-mail, WWW, Dyrektor, Uczniowie)", value=True)
                         
-                        szukaj_rspo, szukaj_telefon, szukaj_email, szukaj_www = True, True, True, True
+                        szukaj_rspo, szukaj_telefon, szukaj_email, szukaj_www, szukaj_dyrektor, szukaj_uczniowie = True, True, True, True, True, True
                         if not szukaj_wszystko:
-                            cc1, cc2, cc3, cc4 = st.columns(4)
-                            with cc1: szukaj_rspo = st.checkbox("Numer RSPO", value=True)
-                            with cc2: szukaj_telefon = st.checkbox("Telefon")
-                            with cc3: szukaj_email = st.checkbox("E-mail")
-                            with cc4: szukaj_www = st.checkbox("Strona www")
+                            cc1, cc2, cc3 = st.columns(3)
+                            with cc1: 
+                                szukaj_rspo = st.checkbox("Numer RSPO", value=True)
+                                szukaj_telefon = st.checkbox("Telefon")
+                            with cc2: 
+                                szukaj_email = st.checkbox("E-mail")
+                                szukaj_www = st.checkbox("Strona www")
+                            with cc3:
+                                szukaj_dyrektor = st.checkbox("Dyrektor")
+                                szukaj_uczniowie = st.checkbox("Liczba uczniów")
 
                     # KROK 3
                     with st.container(border=True):
@@ -486,6 +503,9 @@ elif st.session_state.page == 'rspo_tool':
                             df_uploaded['Dopasowane: Telefon'] = "-"
                             df_uploaded['Dopasowane: E-mail'] = "-"
                             df_uploaded['Dopasowane: Strona www'] = "-"
+                            df_uploaded['Dopasowane: Dyrektor'] = "-"
+                            df_uploaded['Dopasowane: Liczba uczniów'] = "-"
+                            
                             df_uploaded['Pewność dopasowania (%)'] = 0
                             df_uploaded['Status'] = "Brak kandydata"
                             
@@ -495,6 +515,8 @@ elif st.session_state.page == 'rspo_tool':
                             df_uploaded['_Kandydat_Telefon'] = ""
                             df_uploaded['_Kandydat_Email'] = ""
                             df_uploaded['_Kandydat_WWW'] = ""
+                            df_uploaded['_Kandydat_Dyrektor'] = ""
+                            df_uploaded['_Kandydat_Uczniowie'] = ""
                             df_uploaded['_Kandydat_Opis'] = ""
                             
                             total_rows = len(df_uploaded)
@@ -526,6 +548,8 @@ elif st.session_state.page == 'rspo_tool':
                                     df_uploaded.at[index, '_Kandydat_Telefon'] = dopasowany_wiersz.get('Telefon', 'Brak')
                                     df_uploaded.at[index, '_Kandydat_Email'] = dopasowany_wiersz.get('E-mail', 'Brak')
                                     df_uploaded.at[index, '_Kandydat_WWW'] = dopasowany_wiersz.get('Strona www', 'Brak')
+                                    df_uploaded.at[index, '_Kandydat_Dyrektor'] = dopasowany_wiersz.get('Dyrektor', 'Brak')
+                                    df_uploaded.at[index, '_Kandydat_Uczniowie'] = dopasowany_wiersz.get('Liczba uczniów', 'Brak')
                                     
                                     if pewnosc >= prog_czulosci:
                                         df_uploaded.at[index, 'Status'] = "✅ Auto-Dopasowano"
@@ -533,6 +557,8 @@ elif st.session_state.page == 'rspo_tool':
                                         df_uploaded.at[index, 'Dopasowane: Telefon'] = dopasowany_wiersz.get('Telefon', 'Brak')
                                         df_uploaded.at[index, 'Dopasowane: E-mail'] = dopasowany_wiersz.get('E-mail', 'Brak')
                                         df_uploaded.at[index, 'Dopasowane: Strona www'] = dopasowany_wiersz.get('Strona www', 'Brak')
+                                        df_uploaded.at[index, 'Dopasowane: Dyrektor'] = dopasowany_wiersz.get('Dyrektor', 'Brak')
+                                        df_uploaded.at[index, 'Dopasowane: Liczba uczniów'] = dopasowany_wiersz.get('Liczba uczniów', 'Brak')
                                     else:
                                         df_uploaded.at[index, 'Status'] = "⚠️ Do weryfikacji"
 
@@ -609,7 +635,7 @@ elif st.session_state.page == 'rspo_tool':
                                 st.error(f"**🏫 Nazwa:** {row_data['_Oryginalna_Nazwa']}\n\n**📍 Adres:** {row_data['_Oryginalny_Adres']}")
                             with col_t2:
                                 st.markdown(f"#### 🎯 Najlepszy kandydat RSPO (Pewność: <span style='color:#50E3C2;'>{row_data['Pewność dopasowania (%)']}%</span>)", unsafe_allow_html=True)
-                                st.success(f"**🏫 Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n**🔢 RSPO:** {row_data['_Kandydat_RSPO']}")
+                                st.success(f"**🏫 Pełny Opis:** {row_data['_Kandydat_Opis']}\n\n**🔢 RSPO:** {row_data['_Kandydat_RSPO']}\n\n**👨‍💼 Dyrektor:** {row_data['_Kandydat_Dyrektor']}\n\n**🧑‍🎓 Liczba uczniów:** {row_data['_Kandydat_Uczniowie']}")
                                 
                             st.write("") 
                             
@@ -625,6 +651,8 @@ elif st.session_state.page == 'rspo_tool':
                                         st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
                                         st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
                                         st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Dyrektor'] = "-"
+                                        st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Liczba uczniów'] = "-"
                                         st.rerun()
                                         
                             with c_btn1:
@@ -633,6 +661,8 @@ elif st.session_state.page == 'rspo_tool':
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: Telefon'] = row_data['_Kandydat_Telefon']
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: E-mail'] = row_data['_Kandydat_Email']
                                     st.session_state.df_result.at[current_idx, 'Dopasowane: Strona www'] = row_data['_Kandydat_WWW']
+                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Dyrektor'] = row_data['_Kandydat_Dyrektor']
+                                    st.session_state.df_result.at[current_idx, 'Dopasowane: Liczba uczniów'] = row_data['_Kandydat_Uczniowie']
                                     st.session_state.df_result.at[current_idx, 'Status'] = "🛠️ Ręcznie dopasowano"
                                     st.session_state.review_index += 1
                                     st.rerun()
@@ -655,13 +685,19 @@ elif st.session_state.page == 'rspo_tool':
                                 st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Telefon'] = "-"
                                 st.session_state.df_result.at[idx_to_revert, 'Dopasowane: E-mail'] = "-"
                                 st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Strona www'] = "-"
+                                st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Dyrektor'] = "-"
+                                st.session_state.df_result.at[idx_to_revert, 'Dopasowane: Liczba uczniów'] = "-"
                                 st.rerun()
                         else:
                             st.success("🎉 Perfekcyjne dopasowanie algorytmu! Brak szkół granicznych do weryfikacji.")
 
                     st.divider()
                     
-                    df_do_pobrania = df_res.drop(columns=['_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Opis'])
+                    kolumny_do_usuniecia = [
+                        '_Oryginalna_Nazwa', '_Oryginalny_Adres', '_Kandydat_RSPO', '_Kandydat_Telefon', 
+                        '_Kandydat_Email', '_Kandydat_WWW', '_Kandydat_Dyrektor', '_Kandydat_Uczniowie', '_Kandydat_Opis'
+                    ]
+                    df_do_pobrania = df_res.drop(columns=kolumny_do_usuniecia, errors='ignore')
                     
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -709,6 +745,4 @@ elif st.session_state.page == 'rspo_tool':
             except Exception as e:
                 st.error(f"Wystąpił krytyczny problem przy przetwarzaniu Twojego pliku: {e}")
 
-
-
-
+```
