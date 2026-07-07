@@ -22,14 +22,14 @@ def normalizuj(tekst):
     tekst = re.sub(r'[^\w\s]', ' ', tekst)
     return re.sub(r'\s+', ' ', tekst).strip()
 
-# Wczytywanie nowej bazy RSPO (cache, żeby działało szybko)
+# Wczytywanie bazy (cache, żeby działało szybko)
 @st.cache_data
 def load_baza():
     try:
-        # Zmieniona nazwa pliku na Twoją nową bazę
-        df = pd.read_csv("baza_rspo_new.csv", sep=None, engine='python', encoding='utf-8')
+        # POBIERANIE Z PLIKU baza.csv
+        df = pd.read_csv("baza.csv", sep=None, engine='python', encoding='utf-8')
         
-        # Wykorzystujemy nową strukturę pliku (szczególnie gotową kolumnę 'Adres full')
+        # Wykorzystujemy strukturę pliku (szczególnie gotową kolumnę 'Adres full')
         cols = ['Nazwa', 'Adres full', 'Imię i nazwisko dyrektora']
         dostepne = [c for c in cols if c in df.columns]
         
@@ -37,7 +37,7 @@ def load_baza():
         df['Znormalizowane_wyszukiwanie'] = df['Do_wyszukiwania'].apply(normalizuj)
         return df
     except Exception as e:
-        st.error(f"Nie znaleziono pliku lub wystąpił błąd: {e}")
+        st.error(f"Nie znaleziono pliku baza.csv lub wystąpił błąd: {e}")
         return None
 
 baza = load_baza()
@@ -63,10 +63,10 @@ if baza is not None:
 
         if wybrane_kolumny:
             if st.button("Szukaj dopasowań w RSPO", type="primary"):
-                with st.spinner("Przeszukuję potężną bazę RSPO..."):
+                with st.spinner("Przeszukuję bazę RSPO..."):
                     df_wynik = df_user.copy()
                     
-                    # Dokładne nazwy kolumn wyciągnięte z Twojego nowego pliku
+                    # Dokładne nazwy kolumn z Twojego pliku baza.csv
                     kolumny_rspo = [
                         'Numer RSPO', 'Adres full', 'Kod pocztowy', 
                         'Imię i nazwisko dyrektora', 'Telefon', 'E-mail', 
