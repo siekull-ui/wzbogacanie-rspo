@@ -7,7 +7,7 @@ import re
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Wyszukiwarka RSPO CRM", layout="wide")
 st.title("🏫 Auto-Uzupełniacz Danych CRM z RSPO")
-st.write("Wgraj eksport z CRM (lista szans sprzedaży). Algorytm rygorystycznie weryfikuje adresy, uzupełnia braki i odrzuca dopasowania poniżej 80%.")
+st.write("Wgraj eksport z CRM (lista szans sprzedaży). System połączy nazwę i adres, by znaleźć najlepsze dopasowanie.")
 
 # --- FUNKCJE POMOCNICZE ---
 def normalizuj(tekst):
@@ -15,7 +15,8 @@ def normalizuj(tekst):
     tekst = str(tekst).lower()
     zamiany = {
         r'\bsp\b': 'szkoła podstawowa', r'\bzs\b': 'zespół szkół', r'\blo\b': 'liceum ogólnokształcące',
-        r'\bzso\b': 'zespół szkół ogólnokształcących', r'\bzsz\b': 'zespół szkół zawodowych'
+        r'\bzso\b': 'zespół szkół ogólnokształcących', r'\bzsz\b': 'zespół szkół zawodowych',
+        r'\bgmina\b': '' # Często w CRM wpisujesz "Szansa sprzedaży Gmina X", to psuje szyki
     }
     for wzorzec, zamiennik in zamiany.items():
         tekst = re.sub(wzorzec, zamiennik, tekst)
@@ -26,12 +27,11 @@ def normalizuj(tekst):
 def load_baza():
     try:
         df = pd.read_csv("baza.csv", sep=None, engine='python', encoding='utf-8')
-        # Zapisujemy wyczyszczone wersje kolumn, żeby nie robić tego w locie dla 20k wierszy
-        df['Znormalizowana_Nazwa'] = df['Nazwa'].apply(normalizuj)
-        df['Znormalizowany_Adres'] = df['Adres full'].apply(normalizuj)
-        # Połączona fraza tylko do pierwszego, szybkiego odsiewu
-        df['Do_wyszukiwania'] = df['Znormalizowana_Nazwa'] + " " + df['Znormalizowany_Adres']
+        cols = ['Nazwa', 'Adres full']
+        dostepne = [c for c in cols if c in df.columns]
         
+        df['Do_wyszukiwania'] = df[dostepne].fillna('').astype(str).agg(' '.join, axis=1)
+        df['Znormalizowane_wyszukiwanie'] = df['Do_wyszukiwania'].apply(normalizuj)
         return df
     except Exception as e:
         st.error(f"Nie znaleziono pliku baza.csv lub wystąpił błąd: {e}")
@@ -52,11 +52,17 @@ if baza is not None:
         st.markdown("### Podgląd wgranego pliku:")
         st.dataframe(df_user.head(3))
 
-        if st.button("Uruchom automatyczne uzupełnianie", type="primary"):
-            with st.spinner("Przeszukuję bazę, weryfikuję adresy i uzupełniam luki..."):
+        st.markdown("### 🎛️ Ustawienia wyszukiwania")
+        prog_czulosci = st.slider(
+            "Wybierz minimalną pewność dopasowania (Im mniej, tym więcej znajdzie, ale z większym ryzykiem błędów):", 
+            min_value=50, max_value=100, value=75, step=1
+        )
+
+        if st.button("🚀 Uruchom automatyczne uzupełnianie", type="primary"):
+            with st.spinner("Przeszukuję bazę i uzupełniam luki... To potrwa moment."):
                 df_wynik = df_user.copy()
                 
-                slownik_bazy = baza['Do_wyszukiwania'].to_dict()
+                slownik_bazy = baza['Znormalizowane_wyszukiwanie'].to_dict()
                 progress_bar = st.progress(0)
                 total = len(df_wynik)
                 
@@ -80,49 +86,29 @@ if baza is not None:
                     nazwa_crm = str(row.get(col_tytul, '')) if pd.notna(row.get(col_tytul)) else ''
                     adres_crm = str(row.get(col_adres, '')) if pd.notna(row.get(col_adres)) else ''
                     
+                    # Wyrzucamy dopisek "Szansa sprzedaży", który psuje statystyki dopasowania
+                    nazwa_crm = nazwa_crm.replace("Szansa sprzedaży", "").strip()
+                    
                     fraza = nazwa_crm + " " + adres_crm
                     fraza_znormalizowana = normalizuj(fraza)
 
                     if fraza_znormalizowana.strip():
-                        # 1. Pobieramy 5 najlepszych kandydatów (szybki odsiew)
-                        kandydaci = process.extract(fraza_znormalizowana, slownik_bazy, limit=5, scorer=fuzz.token_set_ratio)
+                        # token_set_ratio ignoruje kolejność słów i radzi sobie z nadmiarowymi wyrazami
+                        match = process.extractOne(fraza_znormalizowana, slownik_bazy, scorer=fuzz.token_set_ratio)
                         
-                        najlepszy_kandydat_idx = None
-                        najlepszy_wynik = 0
-                        
-                        for tekst_kandydata, wynik_wstepny, idx_bazy in kandydaci:
-                            wiersz_bazy = baza.loc[idx_bazy]
-                            
-                            # 2. Rygorystyczna weryfikacja krzyżowa (Nazwa vs Nazwa, Adres vs Adres)
-                            znorm_nazwa_crm = normalizuj(nazwa_crm)
-                            znorm_adres_crm = normalizuj(adres_crm)
-                            
-                            score_nazwa = fuzz.token_set_ratio(znorm_nazwa_crm, wiersz_bazy['Znormalizowana_Nazwa'])
-                            
-                            if znorm_adres_crm.strip() != "":
-                                score_adres = fuzz.token_set_ratio(znorm_adres_crm, wiersz_bazy['Znormalizowany_Adres'])
-                                # Adres i nazwa ważą po 50%
-                                wynik_ostateczny = (score_nazwa * 0.5) + (score_adres * 0.5)
-                            else:
-                                # Jak w CRM nie ma adresu, ufamy samej nazwie
-                                wynik_ostateczny = score_nazwa
-                                
-                            if wynik_ostateczny > najlepszy_wynik:
-                                najlepszy_wynik = wynik_ostateczny
-                                najlepszy_kandydat_idx = idx_bazy
-                        
-                        # 3. Akceptacja tylko wyników >= 80%
-                        if najlepszy_kandydat_idx is not None and najlepszy_wynik >= 80:  
-                            dopasowany_wiersz = baza.loc[najlepszy_kandydat_idx]
+                        # Sprawdzamy, czy dopasowanie przekracza próg ustawiony suwakiem
+                        if match and match[1] >= prog_czulosci:  
+                            dopasowany_idx = match[2]
+                            dopasowany_wiersz = baza.loc[dopasowany_idx]
 
-                            # Nadpisujemy Numer RSPO i Adres
+                            # Uzupełnianie RSPO i Adresu (zawsze nadpisuje na czyste z RSPO)
                             if pd.notna(dopasowany_wiersz.get('Numer RSPO')):
                                 df_wynik.at[idx, col_rspo] = dopasowany_wiersz['Numer RSPO']
                                 
                             if pd.notna(dopasowany_wiersz.get('Adres full')):
                                 df_wynik.at[idx, col_adres] = dopasowany_wiersz['Adres full']
 
-                            # Uzupełniamy tylko PUSTE pola w reszcie kolumn
+                            # Uzupełnianie LUK
                             if pd.isna(row.get(col_dyr)) or str(row.get(col_dyr)).strip() == "":
                                 if pd.notna(dopasowany_wiersz.get('Imię i nazwisko dyrektora')):
                                     df_wynik.at[idx, col_dyr] = dopasowany_wiersz['Imię i nazwisko dyrektora']
@@ -139,9 +125,10 @@ if baza is not None:
                                 if pd.notna(dopasowany_wiersz.get('Liczba uczniów')):
                                     df_wynik.at[idx, col_uczniowie] = dopasowany_wiersz['Liczba uczniów']
                                     
-                            df_wynik.at[idx, 'Status_Dopasowania'] = f"✅ Znaleziono ({round(najlepszy_wynik)}%)"
+                            df_wynik.at[idx, 'Status_Dopasowania'] = f"✅ Znaleziono ({match[1]}%)"
                         else:
-                            df_wynik.at[idx, 'Status_Dopasowania'] = f"❌ Odrzucono (Max {round(najlepszy_wynik)}%)"
+                            pewnosc = match[1] if match else 0
+                            df_wynik.at[idx, 'Status_Dopasowania'] = f"❌ Zbyt niska pewność ({pewnosc}%)"
 
                     progress_bar.progress((idx + 1) / total)
 
