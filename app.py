@@ -5,11 +5,11 @@ import io
 import re
 
 # Ustawienia strony
-st.set_page_config(page_title="Wyszukiwarka RSPO", layout="wide")
-st.title("🏫 Wyszukiwarka Danych Szkół RSPO")
-st.write("Wgraj plik, wskaż kolumny z danymi i pobierz uzupełnionego Excela.")
+st.set_page_config(page_title="Wyszukiwarka RSPO CRM", layout="wide")
+st.title("🏫 Auto-Uzupełniacz Danych CRM z RSPO")
+st.write("Wgraj eksport z CRM (lista szans sprzedaży), a algorytm automatycznie uzupełni braki i poprawi adresy.")
 
-# Funkcja czyszcząca tekst (żeby łatwiej było parować np. SP = Szkoła Podstawowa)
+# Funkcja czyszcząca tekst dla lepszego dopasowania
 def normalizuj(tekst):
     if pd.isna(tekst): return ""
     tekst = str(tekst).lower()
@@ -22,14 +22,11 @@ def normalizuj(tekst):
     tekst = re.sub(r'[^\w\s]', ' ', tekst)
     return re.sub(r'\s+', ' ', tekst).strip()
 
-# Wczytywanie bazy (cache, żeby działało szybko)
+# Wczytywanie bazy (plik musi nazywać się baza.csv)
 @st.cache_data
 def load_baza():
     try:
-        # POBIERANIE Z PLIKU baza.csv
         df = pd.read_csv("baza.csv", sep=None, engine='python', encoding='utf-8')
-        
-        # Wykorzystujemy strukturę pliku (szczególnie gotową kolumnę 'Adres full')
         cols = ['Nazwa', 'Adres full', 'Imię i nazwisko dyrektora']
         dostepne = [c for c in cols if c in df.columns]
         
@@ -44,7 +41,7 @@ baza = load_baza()
 
 if baza is not None:
     # Wgrywanie pliku użytkownika
-    uploaded_file = st.file_uploader("📂 Wgraj swój plik do uzupełnienia (Excel lub CSV)", type=["xlsx", "csv"])
+    uploaded_file = st.file_uploader("📂 Wgraj swój eksport deali (Excel lub CSV)", type=["xlsx", "csv"])
 
     if uploaded_file:
         if uploaded_file.name.endswith('.csv'):
@@ -52,68 +49,97 @@ if baza is not None:
         else:
             df_user = pd.read_excel(uploaded_file)
 
-        st.markdown("### Podgląd Twojego pliku:")
+        st.markdown("### Podgląd wgranego pliku:")
         st.dataframe(df_user.head(3))
 
-        kolumny = df_user.columns.tolist()
-        wybrane_kolumny = st.multiselect(
-            "Wybierz kolumny z Twojego pliku, z których mam złożyć frazę do szukania (np. Nazwa, Ulica, Miasto):", 
-            kolumny
-        )
+        # Zaczynamy automatyczną magię od razu po wciśnięciu przycisku
+        if st.button("Uruchom automatyczne uzupełnianie", type="primary"):
+            with st.spinner("Przeszukuję bazę i uzupełniam luki... To może chwilę potrwać."):
+                df_wynik = df_user.copy()
+                
+                # Słownik do szybkiego wyszukiwania
+                slownik_bazy = baza['Znormalizowane_wyszukiwanie'].to_dict()
+                progress_bar = st.progress(0)
+                total = len(df_wynik)
+                
+                # Definicja kolumn z Twojego pliku CRM
+                col_tytul = 'Szansa sprzedaży - Tytuł'
+                col_adres = 'Organizacja - Adres'
+                col_rspo = 'Organizacja - Numer RSPO'
+                col_dyr = 'Organizacja - Imię i nazwisko dyrektora'
+                col_email = 'Organizacja - E-mail'
+                col_www = 'Organizacja - Strona internetowa'
+                col_uczniowie = 'Szansa sprzedaży - Liczba uczniów'
+                
+                # Zabezpieczenie: jeśli jakiejś kolumny brakuje, to ją dodajemy
+                for c in [col_rspo, col_dyr, col_adres, col_email, col_www, col_uczniowie]:
+                    if c not in df_wynik.columns:
+                        df_wynik[c] = ""
+                        
+                df_wynik['Status_Dopasowania'] = "Brak"
 
-        if wybrane_kolumny:
-            if st.button("Szukaj dopasowań w RSPO", type="primary"):
-                with st.spinner("Przeszukuję bazę RSPO..."):
-                    df_wynik = df_user.copy()
+                for idx, row in df_wynik.iterrows():
+                    # Tworzymy frazę wyszukiwania: Nazwa Szkoły + Adres
+                    nazwa = str(row.get(col_tytul, '')) if pd.notna(row.get(col_tytul)) else ''
+                    adres_org = str(row.get(col_adres, '')) if pd.notna(row.get(col_adres)) else ''
                     
-                    # Dokładne nazwy kolumn z Twojego pliku baza.csv
-                    kolumny_rspo = [
-                        'Numer RSPO', 'Adres full', 'Kod pocztowy', 
-                        'Imię i nazwisko dyrektora', 'Telefon', 'E-mail', 
-                        'Strona www', 'Liczba uczniów', 'Publiczność status'
-                    ]
-                    
-                    # Przygotowanie pustych kolumn wynikowych
-                    df_wynik['Pewność_dopasowania_%'] = 0
-                    for col in kolumny_rspo:
-                        df_wynik[f'RSPO_{col}'] = ""
+                    fraza = nazwa + " " + adres_org
+                    fraza_znormalizowana = normalizuj(fraza)
 
-                    slownik_bazy = baza['Znormalizowane_wyszukiwanie'].to_dict()
-                    progress_bar = st.progress(0)
-                    total = len(df_wynik)
+                    if fraza_znormalizowana.strip():
+                        # Używamy fuzz.token_set_ratio, które świetnie radzi sobie z odwróconą kolejnością słów
+                        match = process.extractOne(fraza_znormalizowana, slownik_bazy, scorer=fuzz.token_set_ratio)
+                        
+                        # Próg pewności na 75, by nie wciągać przypadkowych szkół
+                        if match and match[1] >= 75:  
+                            dopasowany_idx = match[2]
+                            dopasowany_wiersz = baza.loc[dopasowany_idx]
 
-                    for idx, row in df_wynik.iterrows():
-                        fraza = " ".join([str(row[col]) for col in wybrane_kolumny if pd.notna(row[col])])
-                        fraza_znormalizowana = normalizuj(fraza)
+                            # 1. Numer RSPO -> Nadpisujemy
+                            if pd.notna(dopasowany_wiersz.get('Numer RSPO')):
+                                df_wynik.at[idx, col_rspo] = dopasowany_wiersz['Numer RSPO']
+                                
+                            # 2. Adres -> Nadpisujemy (poprawiamy na czysty adres RSPO)
+                            if pd.notna(dopasowany_wiersz.get('Adres full')):
+                                df_wynik.at[idx, col_adres] = dopasowany_wiersz['Adres full']
 
-                        if fraza_znormalizowana:
-                            match = process.extractOne(fraza_znormalizowana, slownik_bazy, scorer=fuzz.token_set_ratio)
-                            
-                            if match:
-                                pewnosc = match[1]
-                                dopasowany_idx = match[2]
-                                dopasowany_wiersz = baza.loc[dopasowany_idx]
+                            # 3. Dyrektor -> Uzupełniamy tylko LUKI
+                            if pd.isna(row.get(col_dyr)) or str(row.get(col_dyr)).strip() == "":
+                                if pd.notna(dopasowany_wiersz.get('Imię i nazwisko dyrektora')):
+                                    df_wynik.at[idx, col_dyr] = dopasowany_wiersz['Imię i nazwisko dyrektora']
+                                    
+                            # 4. E-mail -> Uzupełniamy tylko LUKI
+                            if pd.isna(row.get(col_email)) or str(row.get(col_email)).strip() == "":
+                                if pd.notna(dopasowany_wiersz.get('E-mail')):
+                                    df_wynik.at[idx, col_email] = dopasowany_wiersz['E-mail']
+                                    
+                            # 5. WWW -> Uzupełniamy tylko LUKI
+                            if pd.isna(row.get(col_www)) or str(row.get(col_www)).strip() == "":
+                                if pd.notna(dopasowany_wiersz.get('Strona www')):
+                                    df_wynik.at[idx, col_www] = dopasowany_wiersz['Strona www']
+                                    
+                            # 6. Liczba uczniów -> Uzupełniamy tylko LUKI
+                            if pd.isna(row.get(col_uczniowie)) or str(row.get(col_uczniowie)).strip() == "":
+                                if pd.notna(dopasowany_wiersz.get('Liczba uczniów')):
+                                    df_wynik.at[idx, col_uczniowie] = dopasowany_wiersz['Liczba uczniów']
+                                    
+                            df_wynik.at[idx, 'Status_Dopasowania'] = f"✅ Znaleziono ({match[1]}%)"
 
-                                df_wynik.at[idx, 'Pewność_dopasowania_%'] = pewnosc
-                                for col in kolumny_rspo:
-                                    if col in baza.columns:
-                                        df_wynik.at[idx, f'RSPO_{col}'] = dopasowany_wiersz[col]
+                    progress_bar.progress((idx + 1) / total)
 
-                        progress_bar.progress((idx + 1) / total)
+                st.success("Analiza zakończona! Dane uzupełnione.")
+                st.dataframe(df_wynik.head(15))
 
-                    st.success("Analiza zakończona!")
-                    st.dataframe(df_wynik.head(10))
+                # Generowanie Excela do pobrania
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_wynik.to_excel(writer, index=False, sheet_name='Zaktualizowane')
+                gotowy_plik = output.getvalue()
 
-                    # Zapis wyników
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df_wynik.to_excel(writer, index=False, sheet_name='Wyniki')
-                    gotowy_plik = output.getvalue()
-
-                    st.download_button(
-                        label="📥 Pobierz uzupełniony plik Excel",
-                        data=gotowy_plik,
-                        file_name="uzupelnione_dane_rspo.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        type="primary"
-                    )
+                st.download_button(
+                    label="📥 Pobierz zaktualizowany plik Excel",
+                    data=gotowy_plik,
+                    file_name="uzupelnione_deale_crm.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary"
+                )
