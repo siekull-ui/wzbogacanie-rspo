@@ -7,7 +7,7 @@ import re
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Wyszukiwarka RSPO CRM", layout="wide")
 st.title("🏫 Auto-Uzupełniacz Danych CRM")
-st.write("Wersja niezawodna: Szuka najlepszego dopasowania i wyciąga pełny komplet aktualnych danych.")
+st.write("Wersja niezawodna: Szuka szkół i automatycznie ignoruje wpisy urzędowe (Gminy, Miasta).")
 
 # --- FUNKCJE POMOCNICZE ---
 def normalizuj(tekst):
@@ -76,7 +76,7 @@ if baza is not None:
             col_adres = st.selectbox("📍 Wybierz kolumnę z ADRESEM szkoły:", kolumny_user, index=domyslny_adres)
 
         if st.button("🚀 Szukaj RSPO", type="primary"):
-            with st.spinner("Szukam najbardziej prawdopodobnych dopasowań i zaciągam świeże dane..."):
+            with st.spinner("Szukam najbardziej prawdopodobnych dopasowań, omijając Gminy i Miasta..."):
                 df_wynik = df_user.copy()
                 
                 # Zabezpieczenie przed TypeError
@@ -86,33 +86,43 @@ if baza is not None:
                 progress_bar = st.progress(0)
                 total = len(df_wynik)
                 
-                # Definiujemy kolumny, o które prosiłeś (zawsze czyste, prosto z bazy)
                 nowe_kolumny = [
-                    'RSPO - Numer', 
-                    'RSPO - Adres Poprawny', 
-                    'RSPO - Dyrektor', 
-                    'RSPO - E-mail', 
-                    'RSPO - WWW', 
-                    'RSPO - Uczniowie', 
-                    'Pewność Dopasowania'
+                    'RSPO - Numer', 'RSPO - Adres Poprawny', 'RSPO - Dyrektor', 
+                    'RSPO - E-mail', 'RSPO - WWW', 'RSPO - Uczniowie', 'Pewność Dopasowania'
                 ]
                 
                 for c in nowe_kolumny:
                     df_wynik[c] = ""
                     df_wynik[c] = df_wynik[c].astype(object)
+                    
+                df_wynik['Status_Dopasowania'] = "Brak"
 
                 for idx, row in df_wynik.iterrows():
                     nazwa_crm = str(row[col_tytul]) if pd.notna(row[col_tytul]) else ''
                     adres_crm = str(row[col_adres]) if pd.notna(row[col_adres]) else ''
                     
-                    # Wyrzucamy śmieci eksportowe
-                    nazwa_crm = nazwa_crm.replace("Szansa sprzedaży", "").strip()
+                    # Czyszczenie tytułu
+                    nazwa_czysta = nazwa_crm.replace("Szansa sprzedaży", "").strip()
+                    nazwa_lower = nazwa_czysta.lower()
                     
-                    fraza = nazwa_crm + " " + adres_crm
+                    # --- FILTR ODRZUCAJĄCY GMINY I MIASTA ---
+                    wykluczenia = ['gmina ', 'miasto ', 'urząd ', 'urzad ', 'starostwo ']
+                    szkoly = ['szkoła', 'szkola', 'sp ', 'zs ', 'zespół', 'zespol', 'liceum', 'technikum', 'przedszkole', 'żłobek', 'zlobek', 'zso', 'zsz']
+                    
+                    is_urzad = any(w in nazwa_lower for w in wykluczenia)
+                    is_szkola = any(w in nazwa_lower for w in szkoly)
+                    
+                    # Jeśli to nazwa urzędowa, a nie ma w niej słowa wskazującego na placówkę edukacyjną - pomijamy
+                    if is_urzad and not is_szkola:
+                        df_wynik.at[idx, 'Status_Dopasowania'] = "⏭️ Pominięto (Gmina/Miasto)"
+                        progress_bar.progress((idx + 1) / total)
+                        continue
+
+                    # --- WŁAŚCIWE WYSZUKIWANIE ---
+                    fraza = nazwa_czysta + " " + adres_crm
                     fraza_znormalizowana = normalizuj(fraza)
 
                     if fraza_znormalizowana.strip():
-                        # Szukamy najlepiej dopasowanej szkoły
                         match = process.extractOne(fraza_znormalizowana, slownik_bazy, scorer=fuzz.token_set_ratio)
                         
                         if match:
@@ -120,12 +130,10 @@ if baza is not None:
                             dopasowany_idx = match[2]
                             dopasowany_wiersz = baza.loc[dopasowany_idx]
 
-                            # Sklejamy dłuższy adres: Kod pocztowy + Adres full z RSPO
                             kod = str(dopasowany_wiersz.get('Kod pocztowy', '')).strip()
                             adr = str(dopasowany_wiersz.get('Adres full', '')).strip()
                             pelny_dlugi_adres = f"{kod} {adr}".strip()
 
-                            # Wrzucamy dane do pliku (str() zapobiega sypaniu się Pandas)
                             df_wynik.at[idx, 'RSPO - Numer'] = str(dopasowany_wiersz.get('Numer RSPO', ''))
                             df_wynik.at[idx, 'RSPO - Adres Poprawny'] = pelny_dlugi_adres
                             df_wynik.at[idx, 'RSPO - Dyrektor'] = str(dopasowany_wiersz.get('Imię i nazwisko dyrektora', ''))
@@ -133,15 +141,15 @@ if baza is not None:
                             df_wynik.at[idx, 'RSPO - WWW'] = str(dopasowany_wiersz.get('Strona www', ''))
                             df_wynik.at[idx, 'RSPO - Uczniowie'] = str(dopasowany_wiersz.get('Liczba uczniów', ''))
                             df_wynik.at[idx, 'Pewność Dopasowania'] = f"{najlepszy_wynik}%"
+                            df_wynik.at[idx, 'Status_Dopasowania'] = "✅ Znaleziono"
 
                     progress_bar.progress((idx + 1) / total)
 
-                st.success("Gotowe! Wszystkie kolumny zaktualizowane aktualnymi danymi z bazy.")
+                st.success("Gotowe! Wszystkie kolumny zaktualizowane, gminy/miasta zostały pominięte.")
                 
-                # Podgląd najważniejszych danych dla pewności
                 st.dataframe(df_wynik[[
-                    col_tytul, 'RSPO - Numer', 'RSPO - Adres Poprawny', 
-                    'RSPO - Dyrektor', 'RSPO - Uczniowie', 'RSPO - E-mail'
+                    col_tytul, 'Status_Dopasowania', 'RSPO - Numer', 'RSPO - Adres Poprawny', 
+                    'RSPO - Dyrektor', 'Pewność Dopasowania'
                 ]].head(15))
 
                 # --- EXPORT ---
