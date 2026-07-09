@@ -6,8 +6,8 @@ import re
 
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Wyszukiwarka RSPO CRM", layout="wide")
-st.title("🏫 Auto-Uzupełniacz Danych CRM (Rygorystyczny Adres)")
-st.write("Wgraj eksport z CRM. System weryfikuje osobno NAZWĘ i ADRES. Jeśli adres z CRM nie pokrywa się z RSPO, dopasowanie jest odrzucane, zapobiegając błędom lokalizacyjnym.")
+st.title("🏫 Auto-Uzupełniacz Danych CRM (Pełna Kontrola)")
+st.write("Wgraj eksport, wskaż kolumny i dopasuj rygorystyczność. System weryfikuje osobno NAZWĘ i ADRES.")
 
 # --- FUNKCJE POMOCNICZE ---
 def normalizuj(tekst):
@@ -27,11 +27,8 @@ def normalizuj(tekst):
 def load_baza():
     try:
         df = pd.read_csv("baza.csv", sep=None, engine='python', encoding='utf-8')
-        
-        # Przygotowujemy osobne, czyste kolumny dla nazwy i adresu
         df['Znormalizowana_Nazwa'] = df['Nazwa'].apply(normalizuj)
         df['Znormalizowany_Adres'] = df['Adres full'].apply(normalizuj)
-        
         return df
     except Exception as e:
         st.error(f"Nie znaleziono pliku baza.csv lub wystąpił błąd: {e}")
@@ -49,39 +46,59 @@ if baza is not None:
         else:
             df_user = pd.read_excel(uploaded_file)
 
-        st.markdown("### Podgląd wgranego pliku:")
+        st.markdown("### 1. Podgląd wgranego pliku:")
         st.dataframe(df_user.head(3))
+
+        kolumny_user = df_user.columns.tolist()
+
+        # --- PANEL KONTROLNY UŻYTKOWNIKA ---
+        st.markdown("### 2. Mapowanie Danych")
+        col1, col2 = st.columns(2)
+        with col1:
+            col_tytul = st.selectbox("📌 Wybierz kolumnę z NAZWĄ szkoły:", kolumny_user, index=0)
+        with col2:
+            # Próba domyślnego wybrania kolumny z adresem, jeśli istnieje
+            domyslny_adres = 1 if len(kolumny_user) > 1 else 0
+            for i, kol in enumerate(kolumny_user):
+                if "adres" in kol.lower():
+                    domyslny_adres = i
+                    break
+            col_adres = st.selectbox("📍 Wybierz kolumnę z ADRESEM szkoły:", kolumny_user, index=domyslny_adres)
+
+        st.markdown("### 3. Opcje Czułości")
+        col3, col4 = st.columns(2)
+        with col3:
+            prog_adres = st.slider("Wymagana zgodność ADRESU (%)", min_value=50, max_value=100, value=85, step=1, help="Ustaw na 85-90% dla rygorystycznego sprawdzania miasta i ulicy.")
+        with col4:
+            prog_nazwa = st.slider("Wymagana zgodność NAZWY (%)", min_value=50, max_value=100, value=80, step=1)
 
         if st.button("🚀 Uruchom rygorystyczne dopasowanie", type="primary"):
             with st.spinner("Przeszukuję bazę z restrykcyjnym sprawdzaniem adresów..."):
                 df_wynik = df_user.copy()
-                
-                # Słownik do szybkiego wyszukiwania nazw
                 slownik_nazw = baza['Znormalizowana_Nazwa'].to_dict()
                 
                 progress_bar = st.progress(0)
                 total = len(df_wynik)
                 
-                # Stałe nazwy kolumn z CRM
-                col_tytul = 'Szansa sprzedaży - Tytuł'
-                col_adres = 'Organizacja - Adres'
-                col_rspo = 'Organizacja - Numer RSPO'
-                col_dyr = 'Organizacja - Imię i nazwisko dyrektora'
-                col_email = 'Organizacja - E-mail'
-                col_www = 'Organizacja - Strona internetowa'
-                col_uczniowie = 'Szansa sprzedaży - Liczba uczniów'
+                # Zabezpieczenie kolumn wyjściowych
+                col_rspo_out = 'RSPO - Numer'
+                col_dyr_out = 'RSPO - Dyrektor'
+                col_adres_out = 'RSPO - Adres Poprawny'
+                col_email_out = 'RSPO - E-mail'
+                col_www_out = 'RSPO - WWW'
+                col_uczniowie_out = 'RSPO - Uczniowie'
                 
-                for c in [col_rspo, col_dyr, col_adres, col_email, col_www, col_uczniowie]:
-                    if c not in df_wynik.columns:
-                        df_wynik[c] = ""
+                for c in [col_rspo_out, col_dyr_out, col_adres_out, col_email_out, col_www_out, col_uczniowie_out]:
+                    df_wynik[c] = ""
                         
                 df_wynik['Status_Dopasowania'] = "Brak"
-                df_wynik['Szczegóły_Błędu'] = "" # Dodatkowa kolumna do diagnozy
+                df_wynik['Szczegóły_Błędu'] = ""
 
                 for idx, row in df_wynik.iterrows():
-                    nazwa_crm = str(row.get(col_tytul, '')) if pd.notna(row.get(col_tytul)) else ''
-                    adres_crm = str(row.get(col_adres, '')) if pd.notna(row.get(col_adres)) else ''
+                    nazwa_crm = str(row[col_tytul]) if pd.notna(row[col_tytul]) else ''
+                    adres_crm = str(row[col_adres]) if pd.notna(row[col_adres]) else ''
                     
+                    # Czyszczenie z typowych śmieci CRM
                     nazwa_crm = nazwa_crm.replace("Szansa sprzedaży", "").strip()
                     
                     znorm_nazwa_crm = normalizuj(nazwa_crm)
@@ -93,27 +110,23 @@ if baza is not None:
                         
                         najlepszy_idx = None
                         najlepszy_wynik_nazwy = 0
-                        
-                        powod_odrzucenia = "Nie znaleziono podobnej nazwy"
+                        powod_odrzucenia = "Nie znaleziono podobnej nazwy w bazie"
 
                         for kandydat_nazwa, wynik_nazwy, bazy_idx in kandydaci:
                             wiersz_bazy = baza.loc[bazy_idx]
                             znorm_adres_bazy = str(wiersz_bazy['Znormalizowany_Adres'])
                             
-                            # KROK 2: Restrykcyjna weryfikacja ADRESU (Tylko jeśli jest podany w CRM)
+                            # KROK 2: Weryfikacja ADRESU (Tylko jeśli jest podany w CRM)
                             if znorm_adres_crm.strip() != "":
-                                # Używamy token_set_ratio, więc zignoruje przecinki, ale "Bytom" vs "Kraków" da bardzo niski wynik
                                 zgodnosc_adresu = fuzz.token_set_ratio(znorm_adres_crm, znorm_adres_bazy)
                                 
-                                # HARD LIMIT: Adres musi zgadzać się w min. 85%
-                                if zgodnosc_adresu < 85:
-                                    powod_odrzucenia = f"Adres odrzucony (zgodność {zgodnosc_adresu}%)"
-                                    continue # Przerywamy dla tej szkoły, sprawdzamy następną z listy 15
+                                # Sprawdzamy, czy adres zgadza się z suwakiem (domyślnie 85%)
+                                if zgodnosc_adresu < prog_adres:
+                                    powod_odrzucenia = f"Adres odrzucony (zgodność: {zgodnosc_adresu}%)"
+                                    continue
                             
-                            # KROK 3: Szkoła przeszła test adresu (lub CRM nie miał adresu). 
-                            # Zapisujemy najlepszy wynik nazwy.
-                            # Hard limit dla nazwy: 80%
-                            if wynik_nazwy >= 80 and wynik_nazwy > najlepszy_wynik_nazwy:
+                            # KROK 3: Zapisujemy najlepszy wynik z tych, co przetrwały sito adresu
+                            if wynik_nazwy >= prog_nazwa and wynik_nazwy > najlepszy_wynik_nazwy:
                                 najlepszy_wynik_nazwy = wynik_nazwy
                                 najlepszy_idx = bazy_idx
                         
@@ -121,36 +134,22 @@ if baza is not None:
                         if najlepszy_idx is not None:  
                             dopasowany_wiersz = baza.loc[najlepszy_idx]
 
-                            if pd.notna(dopasowany_wiersz.get('Numer RSPO')):
-                                df_wynik.at[idx, col_rspo] = dopasowany_wiersz['Numer RSPO']
-                            if pd.notna(dopasowany_wiersz.get('Adres full')):
-                                df_wynik.at[idx, col_adres] = dopasowany_wiersz['Adres full']
-
-                            if pd.isna(row.get(col_dyr)) or str(row.get(col_dyr)).strip() == "":
-                                if pd.notna(dopasowany_wiersz.get('Imię i nazwisko dyrektora')):
-                                    df_wynik.at[idx, col_dyr] = dopasowany_wiersz['Imię i nazwisko dyrektora']
+                            df_wynik.at[idx, col_rspo_out] = dopasowany_wiersz.get('Numer RSPO', '')
+                            df_wynik.at[idx, col_adres_out] = dopasowany_wiersz.get('Adres full', '')
+                            df_wynik.at[idx, col_dyr_out] = dopasowany_wiersz.get('Imię i nazwisko dyrektora', '')
+                            df_wynik.at[idx, col_email_out] = dopasowany_wiersz.get('E-mail', '')
+                            df_wynik.at[idx, col_www_out] = dopasowany_wiersz.get('Strona www', '')
+                            df_wynik.at[idx, col_uczniowie_out] = dopasowany_wiersz.get('Liczba uczniów', '')
                                     
-                            if pd.isna(row.get(col_email)) or str(row.get(col_email)).strip() == "":
-                                if pd.notna(dopasowany_wiersz.get('E-mail')):
-                                    df_wynik.at[idx, col_email] = dopasowany_wiersz['E-mail']
-                                    
-                            if pd.isna(row.get(col_www)) or str(row.get(col_www)).strip() == "":
-                                if pd.notna(dopasowany_wiersz.get('Strona www')):
-                                    df_wynik.at[idx, col_www] = dopasowany_wiersz['Strona www']
-                                    
-                            if pd.isna(row.get(col_uczniowie)) or str(row.get(col_uczniowie)).strip() == "":
-                                if pd.notna(dopasowany_wiersz.get('Liczba uczniów')):
-                                    df_wynik.at[idx, col_uczniowie] = dopasowany_wiersz['Liczba uczniów']
-                                    
-                            df_wynik.at[idx, 'Status_Dopasowania'] = f"✅ Znaleziono (Zgodność: {najlepszy_wynik_nazwy}%)"
+                            df_wynik.at[idx, 'Status_Dopasowania'] = f"✅ Znaleziono (Nazwa: {najlepszy_wynik_nazwy}%)"
                         else:
                             df_wynik.at[idx, 'Status_Dopasowania'] = "❌ Odrzucono"
                             df_wynik.at[idx, 'Szczegóły_Błędu'] = powod_odrzucenia
 
                     progress_bar.progress((idx + 1) / total)
 
-                st.success("Analiza zakończona! Błędy lokalizacyjne zostały zablokowane.")
-                st.dataframe(df_wynik[['Szansa sprzedaży - Tytuł', 'Organizacja - Adres', 'Status_Dopasowania', 'Szczegóły_Błędu']].head(20))
+                st.success("Analiza zakończona!")
+                st.dataframe(df_wynik[[col_tytul, col_adres, 'Status_Dopasowania', 'Szczegóły_Błędu']].head(20))
 
                 # --- EXPORT ---
                 output = io.BytesIO()
@@ -161,7 +160,7 @@ if baza is not None:
                 st.download_button(
                     label="📥 Pobierz zaktualizowany plik Excel",
                     data=gotowy_plik,
-                    file_name="uzupelnione_deale_rygorystyczne.xlsx",
+                    file_name="uzupelnione_deale_kontrola.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
