@@ -6,8 +6,8 @@ import re
 
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Wyszukiwarka RSPO CRM", layout="wide")
-st.title("🏫 Auto-Uzupełniacz Danych CRM (Pełna Kontrola)")
-st.write("Wgraj eksport, wskaż kolumny i dopasuj rygorystyczność. System weryfikuje osobno NAZWĘ i ADRES.")
+st.title("🏫 Auto-Uzupełniacz Danych CRM")
+st.write("Wersja niezawodna: Szuka najlepszego dopasowania na podstawie połączonej nazwy i adresu.")
 
 # --- FUNKCJE POMOCNICZE ---
 def normalizuj(tekst):
@@ -26,14 +26,16 @@ def normalizuj(tekst):
 @st.cache_data
 def load_baza():
     try:
-        # Twarde wymuszenie separatora zamiast automatycznego zgadywania
+        # Wymuszamy dtype=str, żeby zabić błędy typowania Pandas
         try:
-            df = pd.read_csv("baza.csv", sep=',', encoding='utf-8')
+            df = pd.read_csv("baza.csv", sep=',', encoding='utf-8', dtype=str)
         except Exception:
-            df = pd.read_csv("baza.csv", sep=';', encoding='utf-8')
+            df = pd.read_csv("baza.csv", sep=';', encoding='utf-8', dtype=str)
             
         df['Znormalizowana_Nazwa'] = df['Nazwa'].apply(normalizuj)
         df['Znormalizowany_Adres'] = df['Adres full'].apply(normalizuj)
+        # Łączymy w jeden solidny blok do szukania
+        df['Do_wyszukiwania'] = df['Znormalizowana_Nazwa'] + " " + df['Znormalizowany_Adres']
         return df
     except Exception as e:
         st.error(f"Nie znaleziono pliku baza.csv lub wystąpił błąd: {e}")
@@ -48,12 +50,12 @@ if baza is not None:
     if uploaded_file:
         if uploaded_file.name.endswith('.csv'):
             try:
-                df_user = pd.read_csv(uploaded_file, sep=',')
+                df_user = pd.read_csv(uploaded_file, sep=',', dtype=str)
             except Exception:
                 uploaded_file.seek(0)
-                df_user = pd.read_csv(uploaded_file, sep=';')
+                df_user = pd.read_csv(uploaded_file, sep=';', dtype=str)
         else:
-            df_user = pd.read_excel(uploaded_file)
+            df_user = pd.read_excel(uploaded_file, dtype=str)
 
         st.markdown("### 1. Podgląd wgranego pliku:")
         st.dataframe(df_user.head(3))
@@ -73,33 +75,25 @@ if baza is not None:
                     break
             col_adres = st.selectbox("📍 Wybierz kolumnę z ADRESEM szkoły:", kolumny_user, index=domyslny_adres)
 
-        st.markdown("### 3. Opcje Czułości")
-        col3, col4 = st.columns(2)
-        with col3:
-            prog_adres = st.slider("Wymagana zgodność ADRESU (%)", min_value=50, max_value=100, value=85, step=1, help="Ustaw na 85-90% dla rygorystycznego sprawdzania miasta i ulicy.")
-        with col4:
-            prog_nazwa = st.slider("Wymagana zgodność NAZWY (%)", min_value=50, max_value=100, value=80, step=1)
-
-        if st.button("🚀 Uruchom rygorystyczne dopasowanie", type="primary"):
-            with st.spinner("Przeszukuję bazę z restrykcyjnym sprawdzaniem adresów..."):
+        if st.button("🚀 Szukaj RSPO", type="primary"):
+            with st.spinner("Szukam najbardziej prawdopodobnych dopasowań..."):
                 df_wynik = df_user.copy()
-                slownik_nazw = baza['Znormalizowana_Nazwa'].to_dict()
                 
+                # Zabezpieczenie przed TypeError (konwersja na czysty object)
+                df_wynik = df_wynik.astype(object)
+                
+                slownik_bazy = baza['Do_wyszukiwania'].to_dict()
                 progress_bar = st.progress(0)
                 total = len(df_wynik)
                 
-                col_rspo_out = 'RSPO - Numer'
-                col_dyr_out = 'RSPO - Dyrektor'
-                col_adres_out = 'RSPO - Adres Poprawny'
-                col_email_out = 'RSPO - E-mail'
-                col_www_out = 'RSPO - WWW'
-                col_uczniowie_out = 'RSPO - Uczniowie'
-                
-                for c in [col_rspo_out, col_dyr_out, col_adres_out, col_email_out, col_www_out, col_uczniowie_out]:
+                # Tworzymy puste kolumny i wymuszamy typ object
+                nowe_kolumny = [
+                    'RSPO - Numer', 'RSPO - Adres Poprawny', 'RSPO - Dyrektor', 
+                    'RSPO - E-mail', 'RSPO - WWW', 'RSPO - Uczniowie', 'Pewność Dopasowania'
+                ]
+                for c in nowe_kolumny:
                     df_wynik[c] = ""
-                        
-                df_wynik['Status_Dopasowania'] = "Brak"
-                df_wynik['Szczegóły_Błędu'] = ""
+                    df_wynik[c] = df_wynik[c].astype(object)
 
                 for idx, row in df_wynik.iterrows():
                     nazwa_crm = str(row[col_tytul]) if pd.notna(row[col_tytul]) else ''
@@ -107,61 +101,43 @@ if baza is not None:
                     
                     nazwa_crm = nazwa_crm.replace("Szansa sprzedaży", "").strip()
                     
-                    znorm_nazwa_crm = normalizuj(nazwa_crm)
-                    znorm_adres_crm = normalizuj(adres_crm)
+                    fraza = nazwa_crm + " " + adres_crm
+                    fraza_znormalizowana = normalizuj(fraza)
 
-                    if znorm_nazwa_crm.strip():
-                        kandydaci = process.extract(znorm_nazwa_crm, slownik_nazw, limit=15, scorer=fuzz.token_set_ratio)
+                    if fraza_znormalizowana.strip():
+                        # Znajduje jedno najlepsze dopasowanie ignorując kolejność słów
+                        match = process.extractOne(fraza_znormalizowana, slownik_bazy, scorer=fuzz.token_set_ratio)
                         
-                        najlepszy_idx = None
-                        najlepszy_wynik_nazwy = 0
-                        powod_odrzucenia = "Nie znaleziono podobnej nazwy w bazie"
+                        if match:
+                            najlepszy_wynik = match[1]
+                            dopasowany_idx = match[2]
+                            dopasowany_wiersz = baza.loc[dopasowany_idx]
 
-                        for kandydat_nazwa, wynik_nazwy, bazy_idx in kandydaci:
-                            wiersz_bazy = baza.loc[bazy_idx]
-                            znorm_adres_bazy = str(wiersz_bazy['Znormalizowany_Adres'])
-                            
-                            if znorm_adres_crm.strip() != "":
-                                zgodnosc_adresu = fuzz.token_set_ratio(znorm_adres_crm, znorm_adres_bazy)
-                                
-                                if zgodnosc_adresu < prog_adres:
-                                    powod_odrzucenia = f"Adres odrzucony (zgodność: {zgodnosc_adresu}%)"
-                                    continue
-                            
-                            if wynik_nazwy >= prog_nazwa and wynik_nazwy > najlepszy_wynik_nazwy:
-                                najlepszy_wynik_nazwy = wynik_nazwy
-                                najlepszy_idx = bazy_idx
-                        
-                        if najlepszy_idx is not None:  
-                            dopasowany_wiersz = baza.loc[najlepszy_idx]
-
-                            df_wynik.at[idx, col_rspo_out] = dopasowany_wiersz.get('Numer RSPO', '')
-                            df_wynik.at[idx, col_adres_out] = dopasowany_wiersz.get('Adres full', '')
-                            df_wynik.at[idx, col_dyr_out] = dopasowany_wiersz.get('Imię i nazwisko dyrektora', '')
-                            df_wynik.at[idx, col_email_out] = dopasowany_wiersz.get('E-mail', '')
-                            df_wynik.at[idx, col_www_out] = dopasowany_wiersz.get('Strona www', '')
-                            df_wynik.at[idx, col_uczniowie_out] = dopasowany_wiersz.get('Liczba uczniów', '')
-                                    
-                            df_wynik.at[idx, 'Status_Dopasowania'] = f"✅ Znaleziono (Nazwa: {najlepszy_wynik_nazwy}%)"
-                        else:
-                            df_wynik.at[idx, 'Status_Dopasowania'] = "❌ Odrzucono"
-                            df_wynik.at[idx, 'Szczegóły_Błędu'] = powod_odrzucenia
+                            # Wymuszamy zrzutowanie wyniku na string (str()), żeby zablokować TypeError z Pandas
+                            df_wynik.at[idx, 'RSPO - Numer'] = str(dopasowany_wiersz.get('Numer RSPO', ''))
+                            df_wynik.at[idx, 'RSPO - Adres Poprawny'] = str(dopasowany_wiersz.get('Adres full', ''))
+                            df_wynik.at[idx, 'RSPO - Dyrektor'] = str(dopasowany_wiersz.get('Imię i nazwisko dyrektora', ''))
+                            df_wynik.at[idx, 'RSPO - E-mail'] = str(dopasowany_wiersz.get('E-mail', ''))
+                            df_wynik.at[idx, 'RSPO - WWW'] = str(dopasowany_wiersz.get('Strona www', ''))
+                            df_wynik.at[idx, 'RSPO - Uczniowie'] = str(dopasowany_wiersz.get('Liczba uczniów', ''))
+                            df_wynik.at[idx, 'Pewność Dopasowania'] = f"{najlepszy_wynik}%"
 
                     progress_bar.progress((idx + 1) / total)
 
                 st.success("Analiza zakończona!")
-                st.dataframe(df_wynik[[col_tytul, col_adres, 'Status_Dopasowania', 'Szczegóły_Błędu']].head(20))
+                # Wyświetlamy tylko kluczowe kolumny do weryfikacji wzrokowej
+                st.dataframe(df_wynik[[col_tytul, col_adres, 'RSPO - Numer', 'RSPO - Adres Poprawny', 'Pewność Dopasowania']].head(20))
 
                 # --- EXPORT ---
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df_wynik.to_excel(writer, index=False, sheet_name='Zaktualizowane')
+                    df_wynik.to_excel(writer, index=False, sheet_name='Uzupełnione')
                 gotowy_plik = output.getvalue()
 
                 st.download_button(
                     label="📥 Pobierz zaktualizowany plik Excel",
                     data=gotowy_plik,
-                    file_name="uzupelnione_deale_kontrola.xlsx",
+                    file_name="proste_uzupelnienie_rspo.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
