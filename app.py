@@ -26,7 +26,12 @@ def normalizuj(tekst):
 @st.cache_data
 def load_baza():
     try:
-        df = pd.read_csv("baza.csv", sep=None, engine='python', encoding='utf-8')
+        # Twarde wymuszenie separatora zamiast automatycznego zgadywania
+        try:
+            df = pd.read_csv("baza.csv", sep=',', encoding='utf-8')
+        except Exception:
+            df = pd.read_csv("baza.csv", sep=';', encoding='utf-8')
+            
         df['Znormalizowana_Nazwa'] = df['Nazwa'].apply(normalizuj)
         df['Znormalizowany_Adres'] = df['Adres full'].apply(normalizuj)
         return df
@@ -42,7 +47,11 @@ if baza is not None:
 
     if uploaded_file:
         if uploaded_file.name.endswith('.csv'):
-            df_user = pd.read_csv(uploaded_file, sep=None, engine='python')
+            try:
+                df_user = pd.read_csv(uploaded_file, sep=',')
+            except Exception:
+                uploaded_file.seek(0)
+                df_user = pd.read_csv(uploaded_file, sep=';')
         else:
             df_user = pd.read_excel(uploaded_file)
 
@@ -57,7 +66,6 @@ if baza is not None:
         with col1:
             col_tytul = st.selectbox("📌 Wybierz kolumnę z NAZWĄ szkoły:", kolumny_user, index=0)
         with col2:
-            # Próba domyślnego wybrania kolumny z adresem, jeśli istnieje
             domyslny_adres = 1 if len(kolumny_user) > 1 else 0
             for i, kol in enumerate(kolumny_user):
                 if "adres" in kol.lower():
@@ -80,7 +88,6 @@ if baza is not None:
                 progress_bar = st.progress(0)
                 total = len(df_wynik)
                 
-                # Zabezpieczenie kolumn wyjściowych
                 col_rspo_out = 'RSPO - Numer'
                 col_dyr_out = 'RSPO - Dyrektor'
                 col_adres_out = 'RSPO - Adres Poprawny'
@@ -98,14 +105,12 @@ if baza is not None:
                     nazwa_crm = str(row[col_tytul]) if pd.notna(row[col_tytul]) else ''
                     adres_crm = str(row[col_adres]) if pd.notna(row[col_adres]) else ''
                     
-                    # Czyszczenie z typowych śmieci CRM
                     nazwa_crm = nazwa_crm.replace("Szansa sprzedaży", "").strip()
                     
                     znorm_nazwa_crm = normalizuj(nazwa_crm)
                     znorm_adres_crm = normalizuj(adres_crm)
 
                     if znorm_nazwa_crm.strip():
-                        # KROK 1: Pobierz 15 szkół z najbardziej podobną NAZWĄ
                         kandydaci = process.extract(znorm_nazwa_crm, slownik_nazw, limit=15, scorer=fuzz.token_set_ratio)
                         
                         najlepszy_idx = None
@@ -116,21 +121,17 @@ if baza is not None:
                             wiersz_bazy = baza.loc[bazy_idx]
                             znorm_adres_bazy = str(wiersz_bazy['Znormalizowany_Adres'])
                             
-                            # KROK 2: Weryfikacja ADRESU (Tylko jeśli jest podany w CRM)
                             if znorm_adres_crm.strip() != "":
                                 zgodnosc_adresu = fuzz.token_set_ratio(znorm_adres_crm, znorm_adres_bazy)
                                 
-                                # Sprawdzamy, czy adres zgadza się z suwakiem (domyślnie 85%)
                                 if zgodnosc_adresu < prog_adres:
                                     powod_odrzucenia = f"Adres odrzucony (zgodność: {zgodnosc_adresu}%)"
                                     continue
                             
-                            # KROK 3: Zapisujemy najlepszy wynik z tych, co przetrwały sito adresu
                             if wynik_nazwy >= prog_nazwa and wynik_nazwy > najlepszy_wynik_nazwy:
                                 najlepszy_wynik_nazwy = wynik_nazwy
                                 najlepszy_idx = bazy_idx
                         
-                        # KROK 4: Zapisywanie danych do pliku
                         if najlepszy_idx is not None:  
                             dopasowany_wiersz = baza.loc[najlepszy_idx]
 
