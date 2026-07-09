@@ -7,7 +7,7 @@ import re
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Wyszukiwarka RSPO CRM", layout="wide")
 st.title("🏫 Auto-Uzupełniacz Danych CRM")
-st.write("Wersja niezawodna: Szuka szkół i automatycznie ignoruje wpisy urzędowe (Gminy, Miasta).")
+st.write("Wersja In-Place: Aktualizuje oryginalne kolumny bez zmiany struktury pliku. Ignoruje wpisy urzędowe.")
 
 # --- FUNKCJE POMOCNICZE ---
 def normalizuj(tekst):
@@ -26,7 +26,6 @@ def normalizuj(tekst):
 @st.cache_data
 def load_baza():
     try:
-        # Wymuszamy dtype=str, żeby zabić błędy typowania Pandas
         try:
             df = pd.read_csv("baza.csv", sep=',', encoding='utf-8', dtype=str)
         except Exception:
@@ -34,7 +33,6 @@ def load_baza():
             
         df['Znormalizowana_Nazwa'] = df['Nazwa'].apply(normalizuj)
         df['Znormalizowany_Adres'] = df['Adres full'].apply(normalizuj)
-        # Łączymy w jeden solidny blok do szukania
         df['Do_wyszukiwania'] = df['Znormalizowana_Nazwa'] + " " + df['Znormalizowany_Adres']
         return df
     except Exception as e:
@@ -62,8 +60,16 @@ if baza is not None:
 
         kolumny_user = df_user.columns.tolist()
 
+        # --- AUTO-DETEKCJA KOLUMN DOCELOWYCH W TWOIM PLIKU ---
+        # Skrypt szuka odpowiednich kolumn w Twoim pliku, by nie zmieniać ich nazw ani kolejności
+        col_rspo = next((c for c in kolumny_user if 'rspo' in c.lower()), None)
+        col_dyr = next((c for c in kolumny_user if 'dyrektor' in c.lower()), None)
+        col_email = next((c for c in kolumny_user if 'mail' in c.lower()), None)
+        col_www = next((c for c in kolumny_user if 'stron' in c.lower() or 'www' in c.lower()), None)
+        col_uczniowie = next((c for c in kolumny_user if 'uczni' in c.lower()), None)
+
         # --- PANEL KONTROLNY UŻYTKOWNIKA ---
-        st.markdown("### 2. Mapowanie Danych")
+        st.markdown("### 2. Mapowanie Danych Wejściowych")
         col1, col2 = st.columns(2)
         with col1:
             col_tytul = st.selectbox("📌 Wybierz kolumnę z NAZWĄ szkoły:", kolumny_user, index=0)
@@ -76,32 +82,20 @@ if baza is not None:
             col_adres = st.selectbox("📍 Wybierz kolumnę z ADRESEM szkoły:", kolumny_user, index=domyslny_adres)
 
         if st.button("🚀 Szukaj RSPO", type="primary"):
-            with st.spinner("Szukam najbardziej prawdopodobnych dopasowań, omijając Gminy i Miasta..."):
-                df_wynik = df_user.copy()
-                
-                # Zabezpieczenie przed TypeError
-                df_wynik = df_wynik.astype(object)
+            with st.spinner("Szukam dopasowań i zaciągam świeże dane bezpośrednio w oryginalnych kolumnach..."):
+                df_wynik = df_user.copy().astype(object) # Chroni przed błędem Pandas
                 
                 slownik_bazy = baza['Do_wyszukiwania'].to_dict()
                 progress_bar = st.progress(0)
                 total = len(df_wynik)
                 
-                nowe_kolumny = [
-                    'RSPO - Numer', 'RSPO - Adres Poprawny', 'RSPO - Dyrektor', 
-                    'RSPO - E-mail', 'RSPO - WWW', 'RSPO - Uczniowie', 'Pewność Dopasowania'
-                ]
-                
-                for c in nowe_kolumny:
-                    df_wynik[c] = ""
-                    df_wynik[c] = df_wynik[c].astype(object)
-                    
+                # Dodajemy tylko jedną kolumnę informacyjną na sam koniec
                 df_wynik['Status_Dopasowania'] = "Brak"
 
                 for idx, row in df_wynik.iterrows():
                     nazwa_crm = str(row[col_tytul]) if pd.notna(row[col_tytul]) else ''
                     adres_crm = str(row[col_adres]) if pd.notna(row[col_adres]) else ''
                     
-                    # Czyszczenie tytułu
                     nazwa_czysta = nazwa_crm.replace("Szansa sprzedaży", "").strip()
                     nazwa_lower = nazwa_czysta.lower()
                     
@@ -112,7 +106,6 @@ if baza is not None:
                     is_urzad = any(w in nazwa_lower for w in wykluczenia)
                     is_szkola = any(w in nazwa_lower for w in szkoly)
                     
-                    # Jeśli to nazwa urzędowa, a nie ma w niej słowa wskazującego na placówkę edukacyjną - pomijamy
                     if is_urzad and not is_szkola:
                         df_wynik.at[idx, 'Status_Dopasowania'] = "⏭️ Pominięto (Gmina/Miasto)"
                         progress_bar.progress((idx + 1) / total)
@@ -130,27 +123,34 @@ if baza is not None:
                             dopasowany_idx = match[2]
                             dopasowany_wiersz = baza.loc[dopasowany_idx]
 
+                            # Sklejamy długi adres z kodem pocztowym
                             kod = str(dopasowany_wiersz.get('Kod pocztowy', '')).strip()
                             adr = str(dopasowany_wiersz.get('Adres full', '')).strip()
                             pelny_dlugi_adres = f"{kod} {adr}".strip()
 
-                            df_wynik.at[idx, 'RSPO - Numer'] = str(dopasowany_wiersz.get('Numer RSPO', ''))
-                            df_wynik.at[idx, 'RSPO - Adres Poprawny'] = pelny_dlugi_adres
-                            df_wynik.at[idx, 'RSPO - Dyrektor'] = str(dopasowany_wiersz.get('Imię i nazwisko dyrektora', ''))
-                            df_wynik.at[idx, 'RSPO - E-mail'] = str(dopasowany_wiersz.get('E-mail', ''))
-                            df_wynik.at[idx, 'RSPO - WWW'] = str(dopasowany_wiersz.get('Strona www', ''))
-                            df_wynik.at[idx, 'RSPO - Uczniowie'] = str(dopasowany_wiersz.get('Liczba uczniów', ''))
-                            df_wynik.at[idx, 'Pewność Dopasowania'] = f"{najlepszy_wynik}%"
-                            df_wynik.at[idx, 'Status_Dopasowania'] = "✅ Znaleziono"
+                            # --- AKTUALIZACJA ORYGINALNYCH KOLUMN (IN-PLACE) ---
+                            # Nadpisujemy dane w starych kolumnach nowymi danymi z bazy
+                            if col_adres: 
+                                df_wynik.at[idx, col_adres] = pelny_dlugi_adres
+                            if col_rspo: 
+                                df_wynik.at[idx, col_rspo] = str(dopasowany_wiersz.get('Numer RSPO', ''))
+                            if col_dyr: 
+                                df_wynik.at[idx, col_dyr] = str(dopasowany_wiersz.get('Imię i nazwisko dyrektora', ''))
+                            if col_email: 
+                                df_wynik.at[idx, col_email] = str(dopasowany_wiersz.get('E-mail', ''))
+                            if col_www: 
+                                df_wynik.at[idx, col_www] = str(dopasowany_wiersz.get('Strona www', ''))
+                            if col_uczniowie: 
+                                df_wynik.at[idx, col_uczniowie] = str(dopasowany_wiersz.get('Liczba uczniów', ''))
+                            
+                            df_wynik.at[idx, 'Status_Dopasowania'] = f"✅ Zaktualizowano ({najlepszy_wynik}%)"
 
                     progress_bar.progress((idx + 1) / total)
 
-                st.success("Gotowe! Wszystkie kolumny zaktualizowane, gminy/miasta zostały pominięte.")
+                st.success("Gotowe! Struktura pliku zachowana, a dane w środku zostały zaktualizowane.")
                 
-                st.dataframe(df_wynik[[
-                    col_tytul, 'Status_Dopasowania', 'RSPO - Numer', 'RSPO - Adres Poprawny', 
-                    'RSPO - Dyrektor', 'Pewność Dopasowania'
-                ]].head(15))
+                # Wyświetlamy podgląd pliku
+                st.dataframe(df_wynik.head(15))
 
                 # --- EXPORT ---
                 output = io.BytesIO()
@@ -159,9 +159,9 @@ if baza is not None:
                 gotowy_plik = output.getvalue()
 
                 st.download_button(
-                    label="📥 Pobierz zaktualizowany plik Excel",
+                    label="📥 Pobierz plik gotowy do CRM",
                     data=gotowy_plik,
-                    file_name="kompletne_dane_rspo.xlsx",
+                    file_name="gotowe_do_crm.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
